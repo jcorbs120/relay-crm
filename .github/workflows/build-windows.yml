@@ -1,0 +1,78 @@
+name: Build Windows desktop app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed only to attach the installer to a GitHub Release on v* tags
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Work out version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path relay/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF -like "refs/tags/v*") { $v = $env:GITHUB_REF_NAME.TrimStart("v") }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build app (PyInstaller)
+        run: pyinstaller --noconfirm --clean packaging/relay.spec
+
+      - name: Self-test the built app
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\RelayCRM\RelayCRM.exe" -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Write-Error "Built app failed its self-test (exit $($p.ExitCode))"; exit 1 }
+          Write-Host "Self-test passed"
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Portable zip (no install needed)
+        shell: pwsh
+        run: Compress-Archive -Path dist\RelayCRM\* -DestinationPath "Output\RelayCRM-Portable-${{ steps.ver.outputs.version }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RelayCRM-Setup-${{ steps.ver.outputs.version }}
+          path: Output/RelayCRM-Setup-*.exe
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RelayCRM-Portable-${{ steps.ver.outputs.version }}
+          path: Output/RelayCRM-Portable-*.zip
+
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Output/RelayCRM-Setup-*.exe
+            Output/RelayCRM-Portable-*.zip

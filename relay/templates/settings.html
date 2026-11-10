@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+<div class="head"><h1>Settings</h1></div>
+<div class="grid g2" style="align-items:start">
+
+<div class="card" id="m365">
+  <h2>Microsoft 365 / Outlook connection</h2>
+  {% if account %}
+    <div class="flash ok">Signed in as <b>{{ account }}</b>.</div>
+  {% endif %}
+  <form method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="section" value="m365">
+    <div class="field"><label>Microsoft cloud</label><select name="m365_cloud">{% for k, l in clouds.items() %}<option value="{{ k }}" {{ 'selected' if S.m365_cloud==k }}>{{ l }}</option>{% endfor %}</select>
+      <div class="small muted">Most agencies and contractors: commercial or GCC. Ask IT if you're on GCC High or DoD.</div></div>
+    <div class="field"><label>Directory (tenant) ID</label><input name="m365_tenant_id" value="{{ S.m365_tenant_id }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+    <div class="field"><label>Application (client) ID</label><input name="m365_client_id" value="{{ S.m365_client_id }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+    <button class="btn">Save IDs</button>
+    <span class="small muted">Your IT admin gets these from a 5-minute app registration — see <b>AZURE_SETUP.md</b> (also in the Start menu folder).</span>
+  </form>
+  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+  {% if S.m365_tenant_id and S.m365_client_id %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" id="m365-login" type="button">{{ 'Sign in again' if account else 'Sign in to Microsoft 365' }}</button>
+      {% if account %}
+      <form method="post" action="/m365/test" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn">Test connection</button></form>
+      <form method="post" action="/m365/logout" class="inline" data-confirm="Sign out of Microsoft 365? Email sync will stop."><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn danger">Sign out</button></form>
+      {% endif %}
+    </div>
+    <div id="m365-flow" style="margin-top:12px"></div>
+  {% else %}
+    <p class="muted">Save the tenant and client IDs above, then a <b>Sign in</b> button appears here.</p>
+  {% endif %}
+  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+  <h3>Mode</h3>
+  {% if S.mode == 'demo' %}
+    <p>You're in <b>demo mode</b>. Switch to live once you're signed in.</p>
+    <form method="post" action="/settings/mode"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="live">
+      <label class="inline" style="margin-bottom:8px"><input type="checkbox" name="clear_demo" value="1" checked> Remove the sample data first</label><br>
+      <button class="btn primary" {{ 'disabled' if not account }}>Switch to live mode</button></form>
+  {% else %}
+    <p><span class="mode live">Live</span> Syncing <b>{{ S.my_email }}</b> every {{ S.sync_minutes }} minutes.</p>
+    <form method="post" action="/settings/mode" data-confirm="Load demo data? This REPLACES all your CRM records. Make a backup first."><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="mode" value="demo"><button class="btn danger">Reset to demo data</button></form>
+  {% endif %}
+</div>
+
+<form method="post" class="card" id="general"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="section" value="general">
+  <h2>You &amp; email capture</h2>
+  <div class="row"><div class="field"><label>Your name</label><input name="my_name" value="{{ S.my_name }}"></div>
+    <div class="field"><label>Your email</label><input name="my_email" value="{{ S.my_email }}"></div></div>
+  <div class="field"><label>Other addresses that are you (aliases, shared mailbox)</label><input name="aliases" value="{{ S.aliases }}" placeholder="j.smith@agency.gov, bd@firm.com"></div>
+  <div class="field"><label>Outlook folder for BCC / forwarded emails</label><input name="crm_folder" value="{{ S.crm_folder }}">
+    <div class="small muted">BCC <b>{{ (S.my_email.split('@')[0] ~ '+crm@' ~ S.my_email.split('@')[1]) if '@' in S.my_email else 'you+crm@yourdomain' }}</b> or forward an email to yourself, and use an Outlook rule to move it into this folder. Forwards are filed under the original sender.</div></div>
+  <label class="inline"><input type="checkbox" name="auto_create_outbound" value="1" {{ 'checked' if S.auto_create_outbound=='1' }}> Create a contact the first time I email someone new</label><br>
+  <label class="inline"><input type="checkbox" name="auto_create_inbound" value="1" {{ 'checked' if S.auto_create_inbound=='1' }}> Create a contact (flagged for review) the first time someone new emails me</label><br>
+  <label class="inline" style="margin-bottom:12px"><input type="checkbox" name="skip_internal" value="1" {{ 'checked' if S.skip_internal=='1' }}> Ignore colleagues at my own email domain</label>
+  <div class="row">
+    <div class="field"><label>"Awaiting reply" after (days)</label><input type="number" min="1" name="awaiting_reply_days" value="{{ S.awaiting_reply_days }}"></div>
+    <div class="field"><label>"Reply needed" after (days)</label><input type="number" min="1" name="reply_needed_days" value="{{ S.reply_needed_days }}"></div>
+    <div class="field"><label>Auto-sync every (minutes)</label><input type="number" min="1" name="sync_minutes" value="{{ S.sync_minutes }}"></div>
+    <div class="field"><label>First sync looks back (days)</label><input type="number" min="1" max="365" name="first_sync_days" value="{{ S.first_sync_days }}"></div>
+  </div>
+  <div class="field"><label>Email signature</label><textarea name="signature" style="min-height:70px">{{ S.signature }}</textarea></div>
+  <button class="btn primary">Save</button>
+</form>
+
+<div class="card" id="data"><h2>Your data</h2>
+  <p class="muted">Everything is stored in one file on this computer:<br><code class="small">{{ data_dir }}</code></p>
+  <p><a class="btn" href="/backup">⬇ Download a backup</a></p>
+  <form method="post" action="/restore" enctype="multipart/form-data" data-confirm="Restore this backup? Your current data is saved first."><input type="hidden" name="_csrf" value="{{ csrf }}">
+    <div class="row" style="align-items:center"><input type="file" name="file" accept=".db"><button class="btn">Restore backup</button></div></form>
+</div>
+
+<form method="post" class="card" id="password"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="section" value="password">
+  <h2>Password lock</h2>
+  <p class="muted">{{ 'A password is required to open the CRM.' if S.password_hash else 'Optional. Requires a password each time the CRM is opened.' }}</p>
+  <div class="row"><div class="field"><label>New password</label><input type="password" name="password"></div><div class="field"><label>Again</label><input type="password" name="password2"></div></div>
+  <button class="btn primary">{{ 'Change password' if S.password_hash else 'Turn on password lock' }}</button>
+  {% if S.password_hash %}<button class="btn danger" name="remove" value="1">Remove lock</button>{% endif %}
+</form>
+</div>
+{% endblock %}

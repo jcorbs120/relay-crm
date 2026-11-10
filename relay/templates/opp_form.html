@@ -1,0 +1,29 @@
+{% extends 'base.html' %}{% import 'macros.html' as m with context %}
+{% block title %}{{ o.name or 'New opportunity' }}{% endblock %}
+{% block body %}
+<div class="head"><h1>{{ o.name or 'New opportunity' }}</h1>
+{% if o.id %}<div class="actions"><form method="post" action="/opps/{{ o.id }}/delete" class="inline" data-confirm="Delete this opportunity?"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn danger">Delete</button></form></div>{% endif %}</div>
+<div class="grid {{ 'g-side' if o.id }}">
+<form method="post" class="card" style="max-width:900px"><input type="hidden" name="_csrf" value="{{ csrf }}">
+  <div class="field"><label>Name</label><input name="name" value="{{ o.name or '' }}" required placeholder="e.g. Zero Trust Architecture Pilot"></div>
+  <div class="row">
+    <div class="field"><label>Organization</label><select name="org_id"><option value="">—</option>{% for g in orgs %}<option value="{{ g.id }}" {{ 'selected' if o.org_id==g.id }}>{{ g.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Primary contact</label><select name="contact_id"><option value="">—</option>{% for p in people %}<option value="{{ p.id }}" {{ 'selected' if o.contact_id==p.id }}>{{ cname(p) }}{{ ' · ' ~ p.email if p.email }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Stage</label><select name="stage">{% for s in STAGES %}<option {{ 'selected' if (o.stage or 'Lead')==s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Value ($)</label><input name="value" value="{{ '%.0f'|format(o.value) if o.value else '' }}" inputmode="decimal"></div>
+    <div class="field"><label>Probability (%)</label><input type="number" min="0" max="100" name="probability" value="{{ o.probability if o.probability is not none else '' }}" placeholder="auto from stage"></div>
+    <div class="field"><label>Expected close / award</label><input type="date" name="close_date" value="{{ o.close_date or '' }}"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Solicitation / RFP number</label><input name="solicitation" value="{{ o.solicitation or '' }}"></div>
+    <div class="field"><label>Contract vehicle</label><input name="vehicle" value="{{ o.vehicle or '' }}" list="vehicles" placeholder="GSA MAS, CIO-SP4, OASIS+…">
+      <datalist id="vehicles">{% for v in ['GSA MAS','OASIS+','CIO-SP4','SEWP V','Alliant 2','8(a) STARS III','T4NG2','VETS 2','Polaris','BPA','IDIQ','Direct','State contract','Cooperative (e.g. Sourcewell)'] %}<option>{{ v }}</option>{% endfor %}</datalist></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea name="notes">{{ o.notes or '' }}</textarea></div>
+  <button class="btn primary">Save</button> <a class="btn" href="/pipeline">Back to pipeline</a>
+</form>
+{% if o.id %}<div class="card"><h2>Linked correspondence</h2><p class="small muted" style="margin-top:0">Emails with this opportunity's contacts are linked here automatically.</p>{{ m.timeline(acts, show_contact=True) }}</div>{% endif %}
+</div>
+{% endblock %}

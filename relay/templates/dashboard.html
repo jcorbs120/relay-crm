@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% import 'macros.html' as m with context %}
+{% block title %}Dashboard{% endblock %}
+{% block body %}
+<div class="head">
+  <div><h1>Welcome back{{ ', ' ~ S.my_name.split(' ')[0] if S.my_name }}</h1>
+  <div class="muted small">{% if last_sync %}Last email sync {{ last_sync.finished_at|ago }} ({{ last_sync.finished_at|dt }}) · {{ last_sync.logged }} logged{% if last_sync.error %} · <span class="overdue">{{ last_sync.error }}</span>{% endif %}{% else %}No email sync yet — click <b>Sync email</b>.{% endif %}</div></div>
+  <div class="actions"><a class="btn" href="/contacts/new">+ Contact</a><a class="btn" href="/opps/new">+ Opportunity</a><a class="btn" href="/compose">✉ Write email</a></div>
+</div>
+{% if S.mode == 'demo' %}<div class="callout warn" style="margin-bottom:16px">You're in <b>demo mode</b> with sample data. Click <b>Sync email</b> (top right) to watch the CRM log emails, create new contacts and close follow-ups from a simulated mailbox. When you're ready, connect Outlook in <a href="/settings#m365">Settings → Microsoft 365</a>.</div>{% endif %}
+<div class="kpis">
+  <div class="kpi"><div class="l">Open pipeline</div><div class="v">{{ money(kpi.open_value) }}</div></div>
+  <div class="kpi"><div class="l">Weighted</div><div class="v">{{ money(kpi.weighted) }}</div></div>
+  <div class="kpi"><div class="l">Contacts</div><div class="v">{{ kpi.contacts }}</div></div>
+  <div class="kpi"><div class="l">Emails (7 days)</div><div class="v">{{ kpi.emails_week }}</div></div>
+  <div class="kpi"><div class="l">Overdue tasks</div><div class="v {{ 'overdue' if kpi.overdue }}">{{ kpi.overdue }}</div></div>
+</div>
+<div class="grid g-side">
+  <div class="grid">
+    <div class="card"><div class="head" style="margin:0 0 4px"><h2 style="margin:0">Recent correspondence &amp; activity</h2><a href="/reports/activity" class="small">Activity report →</a></div>
+      {{ m.timeline(recent, show_contact=True) }}</div>
+  </div>
+  <div class="grid" style="align-content:start">
+    <div class="card"><div class="head" style="margin:0 0 4px"><h2 style="margin:0">Follow-ups due</h2><a href="/tasks" class="small">All tasks →</a></div>
+      {% if tasks %}<ul class="list">{% for t in tasks %}{{ m.task_row(t) }}{% endfor %}</ul>{% else %}<div class="empty">You're all caught up.</div>{% endif %}</div>
+    {% if review %}<div class="card"><div class="head" style="margin:0 0 4px"><h2 style="margin:0">New contacts from email</h2>
+      <form method="post" action="/contacts/review/approve-all" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm">Keep all</button></form></div>
+      <p class="small muted" style="margin-top:0">These people emailed you for the first time. Keep them, edit them, or delete them.</p>
+      <ul class="list">{% for c in review %}<li><div><a href="/contacts/{{ c.id }}">{{ cname(c) }}</a><div class="small muted">{{ c.email }}{% if c.org %} · {{ c.org }}{% endif %}</div></div>
+        <div style="display:flex;gap:4px"><form method="post" action="/contacts/{{ c.id }}/approve" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn sm">Keep</button></form>
+        <form method="post" action="/contacts/{{ c.id }}/delete" class="inline" data-confirm="Delete {{ c.email }}?"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="next" value="/"><button class="btn sm danger">✕</button></form></div></li>{% endfor %}</ul></div>{% endif %}
+    <div class="card"><div class="head" style="margin:0 0 8px"><h2 style="margin:0">Pipeline</h2><a href="/pipeline" class="small">Board →</a></div>
+      {% set items = [] %}{% for s in STAGES %}{% set p = pipe.get(s) %}{% set _ = items.append((s ~ ' (' ~ (p.n if p else 0) ~ ')', (p.v or 0) if p else 0, money(p.v if p else 0))) %}{% endfor %}
+      {{ m.bars(items) }}</div>
+    <div class="card"><h2>Next to close</h2>{% if closing %}<ul class="list">{% for o in closing %}<li><div><a href="/opps/{{ o.id }}">{{ o.name }}</a><div class="small muted">{{ o.org or '' }} · <span class="badge s-{{ o.stage }}">{{ o.stage }}</span></div></div><div class="small" style="text-align:right">{{ money(o.value) }}<div class="muted">{{ o.close_date or '' }}</div></div></li>{% endfor %}</ul>{% else %}<div class="empty">No open opportunities.</div>{% endif %}</div>
+  </div>
+</div>
+{% endblock %}

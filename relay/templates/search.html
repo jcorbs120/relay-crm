@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Search{% endblock %}
+{% block body %}
+<div class="head"><h1>Results for “{{ q }}”</h1></div>
+<div class="grid g2">
+  <div class="card"><h2>Contacts ({{ cs|length }})</h2>{% if cs %}<ul class="list">{% for c in cs %}<li><div><a href="/contacts/{{ c.id }}">{{ cname(c) }}</a><div class="small muted">{{ c.email or '' }} {{ '· ' ~ c.org if c.org }}</div></div></li>{% endfor %}</ul>{% else %}<div class="empty">None</div>{% endif %}</div>
+  <div class="grid" style="align-content:start">
+    <div class="card"><h2>Organizations ({{ os|length }})</h2>{% if os %}<ul class="list">{% for o in os %}<li><a href="/orgs/{{ o.id }}">{{ o.name }}</a><span class="badge t-{{ o.org_type }}">{{ o.org_type }}</span></li>{% endfor %}</ul>{% else %}<div class="empty">None</div>{% endif %}</div>
+    <div class="card"><h2>Opportunities ({{ ops|length }})</h2>{% if ops %}<ul class="list">{% for o in ops %}<li><a href="/opps/{{ o.id }}">{{ o.name }}</a><span class="badge s-{{ o.stage }}">{{ o.stage }}</span></li>{% endfor %}</ul>{% else %}<div class="empty">None</div>{% endif %}</div>
+  </div>
+</div>
+<div class="card" style="margin-top:16px"><h2>Emails &amp; notes ({{ acts|length }})</h2>{% if acts %}<ul class="list">{% for a in acts %}<li><div><b>{{ a.subject }}</b><div class="small muted"><a href="/contacts/{{ a.cid }}">{{ cname(a) }}</a> · {{ ACT_KINDS.get(a.kind) }} · {{ a.occurred_at|dt }}</div></div></li>{% endfor %}</ul>{% else %}<div class="empty">None</div>{% endif %}</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Relay CRM</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body><form method="post" class="card login"><input type="hidden" name="_csrf" value="{{ csrf }}">
+<div class="brand" style="color:var(--brand);padding:0 0 12px"><img src="{{ url_for('static', filename='icon.png') }}" width="28"> Relay CRM</div>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}{% endwith %}
+<div class="field"><label>Password</label><input type="password" name="password" autofocus></div><button class="btn primary">Unlock</button></form></body></html>

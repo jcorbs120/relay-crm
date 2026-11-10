@@ -1,0 +1,72 @@
+{% extends 'base.html' %}{% import 'macros.html' as m with context %}
+{% block title %}{{ cname(c) }}{% endblock %}
+{% block body %}
+<div class="head">
+  <div><h1>{{ cname(c) }} {% if c.needs_review %}<span class="badge review">new from email</span>{% endif %}</h1>
+    <div class="muted">{{ c.title or '' }}{% if c.title and c.org %} · {% endif %}{% if c.org %}<a href="/orgs/{{ c.gid }}">{{ c.org }}</a> <span class="badge t-{{ c.org_type }}">{{ c.org_type }}</span>{% endif %}</div></div>
+  <div class="actions">
+    {% if c.needs_review %}<form method="post" action="/contacts/{{ c.id }}/approve" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn">✓ Keep contact</button></form>{% endif %}
+    {% if c.email %}<a class="btn primary" href="/compose?contact_id={{ c.id }}">✉ Email</a>{% endif %}
+    <a class="btn" href="/opps/new?contact_id={{ c.id }}">+ Opportunity</a>
+    <a class="btn" href="/contacts/{{ c.id }}/edit">Edit</a>
+    <form method="post" action="/contacts/{{ c.id }}/delete" class="inline" data-confirm="Delete {{ cname(c) }} and their history?"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn danger">Delete</button></form>
+  </div>
+</div>
+<div class="grid g-side">
+  <div class="grid" style="align-content:start">
+    <div class="card">
+      <div class="tabs" data-tabs>
+        <button class="on" data-tab="note">✎ Note</button><button data-tab="call">☎ Log call</button><button data-tab="meeting">👥 Log meeting</button><button data-tab="task">☐ Add task</button>
+      </div>
+      {% for kind in ['note','call','meeting'] %}
+      <form method="post" action="/contacts/{{ c.id }}/activity" data-panel="{{ kind }}" class="{{ 'panel-hidden' if kind!='note' }}">
+        <input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="kind" value="{{ kind }}">
+        <div class="row">
+          <div class="field" style="flex:3"><input name="subject" placeholder="{{ {'note':'Subject (optional)','call':'What was the call about?','meeting':'Meeting title'}[kind] }}"></div>
+          {% if kind != 'note' %}<div class="field" style="flex:1"><input type="datetime-local" name="occurred_at" title="When"></div>
+          <div class="field" style="flex:0 0 110px"><input type="number" name="duration_min" placeholder="Minutes" min="0"></div>{% endif %}
+        </div>
+        <div class="field"><textarea name="body" placeholder="{{ 'Notes…' }}"></textarea></div>
+        <div class="row" style="align-items:center">
+          {% if opps %}<select name="opp_id"><option value="">No opportunity</option>{% for o in opps if o.stage not in ('Awarded','Lost') %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select>{% endif %}
+          <select name="followup_days"><option value="">No follow-up</option><option value="1">Follow up tomorrow</option><option value="3">Follow up in 3 days</option><option value="7">Follow up in 1 week</option><option value="14">Follow up in 2 weeks</option></select>
+          <button class="btn primary">Save {{ kind }}</button>
+        </div>
+      </form>
+      {% endfor %}
+      <form method="post" action="/tasks/new" data-panel="task" class="panel-hidden">
+        <input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="contact_id" value="{{ c.id }}">
+        <div class="row"><div class="field" style="flex:3"><input name="title" placeholder="e.g. Send capability statement" required></div>
+          <div class="field" style="flex:1"><input type="date" name="due_date" value="{{ today }}"></div>
+          <div class="field" style="flex:0 0 120px"><select name="priority"><option>Normal</option><option>High</option><option>Low</option></select></div></div>
+        <button class="btn primary">Add task</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="head" style="margin-bottom:4px"><h2 style="margin:0">History</h2>
+        <div class="tabs" style="margin:0;border:0">{% for k,l in [('','All'),('email','Emails'),('call','Calls'),('meeting','Meetings'),('note','Notes')] %}<a href="?kind={{ k }}" class="{{ 'on' if kind==k }}">{{ l }}</a>{% endfor %}</div></div>
+      {{ m.timeline(acts) }}
+    </div>
+  </div>
+  <div class="grid" style="align-content:start">
+    <div class="card"><h2>Details</h2>
+      <dl class="kv">
+        <dt>Email</dt><dd>{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% endif %}</dd>
+        <dt>Phone</dt><dd>{{ c.phone or '' }}</dd><dt>Mobile</dt><dd>{{ c.mobile or '' }}</dd>
+        <dt>Status</dt><dd><span class="badge">{{ c.lifecycle }}</span></dd>
+        <dt>Tags</dt><dd>{% for t in (c.tags or '').split(',') if t %}<a class="badge" href="/contacts?tag={{ t }}">{{ t }}</a> {% endfor %}</dd>
+        <dt>Last contact</dt><dd>{{ c.last_contacted|ago }}</dd>
+        <dt>Emails</dt><dd>{{ stats.eo or 0 }} sent · {{ stats.ei or 0 }} received</dd>
+        <dt>Calls/mtgs</dt><dd>{{ stats.cm or 0 }}</dd>
+        <dt>Added</dt><dd>{{ c.created_at|dt(false) }} <span class="muted small">({{ {'email-out':'from an email you sent','email-in':'from an email you received','import':'imported','manual':'by hand','demo':'demo'}.get(c.source, c.source) }})</span></dd>
+      </dl>
+      {% if c.notes %}<h3 style="margin-top:12px">Background</h3><div style="white-space:pre-wrap">{{ c.notes }}</div>{% endif %}
+    </div>
+    <div class="card"><div class="head" style="margin-bottom:4px"><h2 style="margin:0">Opportunities</h2><a class="small" href="/opps/new?contact_id={{ c.id }}">+ Add</a></div>
+      {% if opps %}<ul class="list">{% for o in opps %}<li><div><a href="/opps/{{ o.id }}">{{ o.name }}</a><div class="small muted">{{ o.solicitation or '' }}</div></div><div style="text-align:right"><span class="badge s-{{ o.stage }}">{{ o.stage }}</span><div class="small">{{ money(o.value) }}</div></div></li>{% endfor %}</ul>{% else %}<div class="empty">None yet.</div>{% endif %}</div>
+    <div class="card"><h2>Tasks</h2>{% set open_tasks = tasks|selectattr('done','equalto',0)|list %}
+      {% if open_tasks %}<ul class="list">{% for t in open_tasks %}{{ m.task_row(t) }}{% endfor %}</ul>{% else %}<div class="empty">No open tasks.</div>{% endif %}</div>
+    {% if colleagues %}<div class="card"><h2>Others at {{ c.org }}</h2><ul class="list">{% for p in colleagues %}<li><div><a href="/contacts/{{ p.id }}">{{ cname(p) }}</a><div class="small muted">{{ p.title or p.email }}</div></div></li>{% endfor %}</ul></div>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Match columns{% endblock %}
+{% block body %}
+<div class="head"><h1>2. Match columns <span class="muted" style="font-weight:400">— {{ filename }}, {{ count }} rows</span></h1></div>
+<form method="post" action="/import"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="confirm" value="1">
+<div class="table-wrap" style="margin-bottom:16px"><table>
+  <tr>{% for h in headers %}{% set col = loop.index0 %}<th>{{ h }}<br><select name="map_{{ col }}" style="margin-top:6px">{% for k, l in labels.items() %}<option value="{{ k }}" {{ 'selected' if mapping[col] == k }}>{{ l }}</option>{% endfor %}</select></th>{% endfor %}</tr>
+  {% for r in sample %}<tr>{% for v in r %}<td class="small">{{ v }}</td>{% endfor %}</tr>{% endfor %}
+</table></div>
+<div class="card row" style="align-items:center">
+  <label class="inline"><input type="checkbox" name="update_existing" value="1" checked> Update contacts that already exist (matched by email)</label>
+  <div class="field" style="margin:0;flex:0 1 260px"><input name="tag" placeholder="Tag this batch (optional), e.g. afcea-2025"></div>
+  <button class="btn primary">Import {{ count }} rows</button> <a class="btn" href="/import">Cancel</a>
+</div>
+</form>
+{% endblock %}

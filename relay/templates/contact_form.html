@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit contact' if c.id else 'New contact' }}{% endblock %}
+{% block body %}
+<div class="head"><h1>{{ 'Edit ' ~ cname(c) if c.id else 'New contact' }}</h1></div>
+<form method="post" class="card" style="max-width:860px">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <div class="row"><div class="field"><label>First name</label><input name="first_name" value="{{ c.first_name or '' }}" autofocus></div>
+    <div class="field"><label>Last name</label><input name="last_name" value="{{ c.last_name or '' }}"></div></div>
+  <div class="row"><div class="field"><label>Email</label><input type="email" name="email" value="{{ c.email or '' }}"></div>
+    <div class="field"><label>Title</label><input name="title" value="{{ c.title or '' }}"></div></div>
+  <div class="row"><div class="field"><label>Phone</label><input name="phone" value="{{ c.phone or '' }}"></div>
+    <div class="field"><label>Mobile</label><input name="mobile" value="{{ c.mobile or '' }}"></div></div>
+  <div class="row">
+    <div class="field"><label>Organization</label><select name="org_id"><option value="">(from email domain / none)</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if c.org_id == o.id or (c.org_id|string) == (o.id|string) }}>{{ o.name }} ({{ o.org_type }})</option>{% endfor %}</select></div>
+    <div class="field"><label>…or create a new organization</label><input name="new_org" placeholder="Organization name"></div>
+    <div class="field" style="flex:0 0 160px"><label>New org type</label><select name="new_org_type"><option value="">Auto</option>{% for t in ORG_TYPES %}<option>{{ t }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row"><div class="field"><label>Status</label><select name="lifecycle">{% for l in LIFECYCLES %}<option {{ 'selected' if c.lifecycle==l }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Tags (comma separated)</label><input name="tags" value="{{ c.tags or '' }}" placeholder="e.g. zero-trust, conference-2025"></div></div>
+  <div class="field"><label>Background notes</label><textarea name="notes">{{ c.notes or '' }}</textarea></div>
+  <button class="btn primary">Save</button> <a class="btn" href="{{ '/contacts/' ~ c.id if c.id else '/contacts' }}">Cancel</a>
+</form>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Write email{% endblock %}
+{% block body %}
+<div class="head"><h1>Write email{% if c %} to {{ cname(c) }}{% endif %}</h1></div>
+{% if S.mode == 'demo' %}<div class="callout warn" style="margin-bottom:12px">Demo mode: the email is logged on the contact's timeline but <b>not actually sent</b>.</div>{% endif %}
+<form method="post" class="card" style="max-width:900px"><input type="hidden" name="_csrf" value="{{ csrf }}">
+  {% if c %}<input type="hidden" name="contact_id" value="{{ c.id }}">{% endif %}
+  <div class="row"><div class="field" style="flex:3"><label>To</label><input name="to" value="{{ form.to }}" required placeholder="name@agency.gov (separate several with commas)"></div>
+    <div class="field"><label>Template</label><select id="tpl"><option value="">Insert template…</option>{% for t in templates %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div></div>
+  <div class="field"><label>Cc</label><input name="cc" value="{{ form.cc or '' }}"></div>
+  <div class="field"><label>Subject</label><input name="subject" value="{{ form.subject }}" required></div>
+  <div class="field"><label>Message</label><textarea name="body" style="min-height:260px">{{ form.body }}</textarea></div>
+  <div class="row" style="align-items:center">
+    {% if opps %}<div class="field" style="flex:0 1 280px;margin:0"><select name="opp_id"><option value="">Link to opportunity…</option>{% for o in opps %}<option value="{{ o.id }}" {{ 'selected' if form.opp_id|string == o.id|string }}>{{ o.name }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="field" style="flex:0 1 240px;margin:0"><select name="followup_days"><option value="">No reminder</option>{% for d in [2,3,5,7,14] %}<option value="{{ d }}" {{ 'selected' if form.followup_days|string == d|string }}>Remind me if no reply in {{ d }} days</option>{% endfor %}</select></div>
+    {% if S.signature %}<label class="inline"><input type="checkbox" name="add_sig" value="1" {{ 'checked' if form.add_sig }}> Add signature</label>{% endif %}
+    <button class="btn primary">{{ 'Log email (demo)' if S.mode=='demo' else 'Send from Outlook' }}</button>
+  </div>
+</form>
+{% endblock %}

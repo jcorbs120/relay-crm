@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% import 'macros.html' as m with context %}
+{% block title %}{{ r.title }}{% endblock %}
+{% block body %}
+<div class="head"><div><h1>{{ r.title }}</h1><div class="muted">{{ r.description }}</div></div>
+  <div class="actions"><a class="btn" href="?{{ request.query_string.decode() }}&format=csv">⬇ Export CSV</a><button class="btn" onclick="window.print()">Print</button><a class="btn" href="/reports">All reports</a></div></div>
+<form class="filters card">
+  <label class="inline">From <input type="date" name="start" value="{{ r.start }}"></label>
+  <label class="inline">To <input type="date" name="end" value="{{ r.end }}"></label>
+  <select name="org_type"><option value="">All org types</option>{% for t in ORG_TYPES %}<option {{ 'selected' if r.org_type==t }}>{{ t }}</option>{% endfor %}</select>
+  <button class="btn primary">Run</button>
+  {% for k,l in [('30','Last 30 days'),('90','Last 90 days'),('365','Last 12 months')] %}<a class="small" href="#" data-days="{{ k }}">{{ l }}</a>{% endfor %}
+</form>
+{% if r.totals %}<div class="kpis" style="grid-template-columns:repeat({{ r.totals|length }}, minmax(0,220px))">{% for l, v in r.totals %}<div class="kpi"><div class="l">{{ l }}</div><div class="v">{{ v }}</div></div>{% endfor %}</div>{% endif %}
+{% if r.chart %}<div class="card" style="margin-bottom:16px">{{ m.bars(r.chart) }}</div>{% endif %}
+<div class="table-wrap"><table>
+<tr>{% for c in r.columns %}<th>{{ c }}</th>{% endfor %}</tr>
+{% for row in r.rows %}{% set link = r.links[loop.index0] if r.links is defined and r.links else '' %}
+<tr>{% for v in row %}<td>{% if loop.first and link %}<a href="{{ link }}">{{ v }}</a>{% else %}{{ v if v is not none else '' }}{% endif %}</td>{% endfor %}</tr>
+{% else %}<tr><td colspan="{{ r.columns|length }}" class="empty">No data for these filters.</td></tr>{% endfor %}
+</table></div>
+<script>
+document.querySelectorAll('[data-days]').forEach(a => a.addEventListener('click', e => {
+  e.preventDefault(); const d = new Date(); const s = new Date(Date.now() - a.dataset.days*864e5);
+  const f = x => x.toISOString().slice(0,10); const u = new URL(location.href);
+  u.searchParams.set('start', f(s)); u.searchParams.set('end', f(d)); u.searchParams.delete('format'); location.href = u;
+}));
+</script>
+{% endblock %}

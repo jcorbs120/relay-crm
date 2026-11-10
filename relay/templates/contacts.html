@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Contacts{% endblock %}
+{% block body %}
+<div class="head"><h1>Contacts <span class="muted" style="font-weight:400">({{ rows|length }})</span></h1>
+  <div class="actions"><a class="btn" href="/contacts/export.csv">Export CSV</a><a class="btn" href="/import">Import</a><a class="btn primary" href="/contacts/new">+ New contact</a></div></div>
+<form class="filters">
+  <input name="q" value="{{ f.q }}" placeholder="Name, email, agency, title…" style="min-width:240px">
+  <select name="lifecycle" data-autosubmit><option value="">All statuses</option>{% for l in LIFECYCLES %}<option {{ 'selected' if f.lifecycle==l }}>{{ l }}</option>{% endfor %}</select>
+  <select name="org_type" data-autosubmit><option value="">All org types</option>{% for t in ORG_TYPES %}<option {{ 'selected' if f.org_type==t }}>{{ t }}</option>{% endfor %}</select>
+  <select name="sort" data-autosubmit>{% for k,v in [('name','Sort: name'),('recent','Sort: last contacted'),('created','Sort: newest'),('org','Sort: organization')] %}<option value="{{ k }}" {{ 'selected' if f.sort==k }}>{{ v }}</option>{% endfor %}</select>
+  <label class="inline"><input type="checkbox" name="review" value="1" {{ 'checked' if f.review }} data-autosubmit> Needs review only</label>
+  {% if f.tag %}<input type="hidden" name="tag" value="{{ f.tag }}"><span class="badge">tag: {{ f.tag }}</span>{% endif %}
+  <button class="btn">Filter</button>{% if f %}<a href="/contacts" class="small">Clear</a>{% endif %}
+</form>
+<div class="table-wrap"><table>
+  <tr><th>Name</th><th>Organization</th><th>Title</th><th>Email / phone</th><th>Status</th><th>Last contacted</th></tr>
+  {% for c in rows %}
+  <tr><td><a href="/contacts/{{ c.id }}"><b>{{ cname(c) }}</b></a>{% if c.needs_review %} <span class="badge review">new</span>{% endif %}</td>
+      <td>{{ c.org or '' }}{% if c.org_type %} <span class="badge t-{{ c.org_type }}">{{ c.org_type }}</span>{% endif %}</td>
+      <td>{{ c.title or '' }}</td><td>{{ c.email or '' }}<div class="small muted">{{ c.phone or '' }}</div></td>
+      <td><span class="badge">{{ c.lifecycle }}</span></td><td title="{{ c.last_contacted|dt }}">{{ c.last_contacted|ago }}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No contacts match. <a href="/contacts/new">Add one</a> or <a href="/import">import a spreadsheet</a>.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

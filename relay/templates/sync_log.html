@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Sync history{% endblock %}
+{% block body %}
+<div class="head"><h1>Email sync history</h1></div>
+<div class="table-wrap"><table><tr><th>Finished</th><th>Mode</th><th class="num">Emails checked</th><th class="num">Logged</th><th class="num">New contacts</th><th class="num">Follow-ups opened</th><th class="num">Closed</th><th>Problems</th></tr>
+{% for r in rows %}<tr><td>{{ r.finished_at|dt }}</td><td>{{ r.mode }}</td><td class="num">{{ r.fetched }}</td><td class="num">{{ r.logged }}</td><td class="num">{{ r.contacts_created }}</td><td class="num">{{ r.tasks_created }}</td><td class="num">{{ r.tasks_closed }}</td><td class="{{ 'overdue' if r.error }}">{{ r.error or '' }}</td></tr>
+{% else %}<tr><td colspan="8" class="empty">No syncs yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

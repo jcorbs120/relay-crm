@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="{{ csrf }}">
+<title>{% block title %}Relay CRM{% endblock %} · Relay CRM</title>
+<link rel="icon" href="{{ url_for('static', filename='icon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ version }}">
+</head>
+<body>
+{% set ep = request.endpoint or '' %}
+<div class="shell">
+  <nav class="side">
+    <div class="brand"><img src="{{ url_for('static', filename='icon.png') }}" alt="">Relay CRM</div>
+    <a href="/" class="{{ 'on' if ep=='dashboard' }}">Dashboard</a>
+    <a href="/contacts" class="{{ 'on' if ep.startswith('contact') }}">Contacts
+      {% if nav_counts.review %}<span class="pill" title="New contacts to review">{{ nav_counts.review }}</span>{% endif %}</a>
+    <a href="/orgs" class="{{ 'on' if ep.startswith('org') }}">Organizations</a>
+    <a href="/pipeline" class="{{ 'on' if ep.startswith('pipeline') or ep.startswith('opp') }}">Pipeline</a>
+    <a href="/tasks" class="{{ 'on' if ep.startswith('task') }}">Tasks
+      {% if nav_counts.due %}<span class="pill" title="Due today or overdue">{{ nav_counts.due }}</span>{% endif %}</a>
+    <a href="/compose" class="{{ 'on' if ep=='compose' }}">Write email</a>
+    <a href="/reports" class="{{ 'on' if ep.startswith('report') }}">Reports</a>
+    <div class="sep"></div>
+    <a href="/import" class="{{ 'on' if ep.startswith('import') }}">Import contacts</a>
+    <a href="/templates" class="{{ 'on' if ep=='email_templates' }}">Email templates</a>
+    <a href="/sync/log" class="{{ 'on' if ep=='sync_log' }}">Sync history</a>
+    <a href="/settings" class="{{ 'on' if ep=='settings' }}">Settings</a>
+    <div class="foot">Version {{ version }}<br>Your data stays on this computer.</div>
+  </nav>
+  <div class="main">
+    <header class="top">
+      <form class="search" action="/search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input name="q" placeholder="Search contacts, agencies, opportunities, emails…" value="{{ request.args.get('q','') if ep=='search' }}">
+      </form>
+      <span class="mode {{ S.mode }}">{{ 'Demo mode' if S.mode=='demo' else 'Live · Microsoft 365' }}</span>
+      <form method="post" action="/sync" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.full_path }}">
+        <button class="btn primary" title="Check Inbox, Sent Items and the CRM folder now">⟳ Sync email</button>
+      </form>
+      {% if S.password_hash %}<form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn">Lock</button></form>{% endif %}
+    </header>
+    <main class="page">
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+      {% endwith %}
+      {% block body %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ version }}"></script>
+</body>
+</html>

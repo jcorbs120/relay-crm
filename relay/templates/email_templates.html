@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Email templates{% endblock %}
+{% block body %}
+<div class="head"><h1>Email templates</h1></div>
+<p class="muted">Placeholders: <code>{first_name}</code> <code>{last_name}</code> <code>{org}</code> <code>{my_name}</code></p>
+<div class="grid g2">
+{% for t in rows %}
+<form method="post" class="card"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ t.id }}">
+  <div class="field"><label>Name</label><input name="name" value="{{ t.name }}"></div>
+  <div class="field"><label>Subject</label><input name="subject" value="{{ t.subject }}"></div>
+  <div class="field"><label>Body</label><textarea name="body" style="min-height:160px">{{ t.body }}</textarea></div>
+  <button class="btn primary">Save</button> <button class="btn danger" name="delete" value="{{ t.id }}" onclick="return confirm('Delete this template?')">Delete</button>
+</form>
+{% endfor %}
+<form method="post" class="card"><input type="hidden" name="_csrf" value="{{ csrf }}"><h2>New template</h2>
+  <div class="field"><label>Name</label><input name="name" required></div>
+  <div class="field"><label>Subject</label><input name="subject"></div>
+  <div class="field"><label>Body</label><textarea name="body" style="min-height:160px"></textarea></div>
+  <button class="btn primary">Add template</button></form>
+</div>
+{% endblock %}
