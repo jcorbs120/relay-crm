@@ -25,6 +25,12 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-build.txt
 
+      - name: Install PyInstaller with a freshly compiled bootloader (avoids antivirus false positives)
+        shell: pwsh
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: python -m pip install --no-binary pyinstaller pyinstaller==6.11.1
+
       - name: Run tests
         run: python -m pytest -q
 
@@ -45,6 +51,17 @@ jobs:
           $p = Start-Process -FilePath "dist\RelayCRM\RelayCRM.exe" -ArgumentList "--selftest" -Wait -PassThru
           if ($p.ExitCode -ne 0) { Write-Error "Built app failed its self-test (exit $($p.ExitCode))"; exit 1 }
           Write-Host "Self-test passed"
+
+      - name: Microsoft Defender scan (report only)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $mp = Get-ChildItem "$env:ProgramData\Microsoft\Windows Defender\Platform\*\MpCmdRun.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+          if (-not $mp) { $mp = Get-Item "$env:ProgramFiles\Windows Defender\MpCmdRun.exe" -ErrorAction SilentlyContinue }
+          if (-not $mp) { Write-Host "Defender not available on this runner"; exit 0 }
+          & $mp.FullName -SignatureUpdate | Out-Host
+          & $mp.FullName -Scan -ScanType 3 -File "$PWD\dist\RelayCRM" -DisableRemediation | Out-Host
+          Write-Host "DEFENDER_EXIT=$LASTEXITCODE  (0 = clean, 2 = threat found)"
 
       - name: Build installer (Inno Setup)
         shell: pwsh

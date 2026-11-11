@@ -7,6 +7,9 @@ if not exist .buildenv python -m venv .buildenv
 call .buildenv\Scripts\activate.bat
 python -m pip install --upgrade pip >nul
 python -m pip install -r requirements-build.txt || (pause & exit /b 1)
+REM Build PyInstaller's launcher from source (fewer antivirus false alarms). Needs Visual Studio Build Tools; falls back to the prebuilt one.
+set PYINSTALLER_COMPILE_BOOTLOADER=1
+python -m pip install --no-binary pyinstaller pyinstaller==6.11.1 || python -m pip install pyinstaller==6.11.1
 python -m pytest -q || (echo Tests failed. & pause & exit /b 1)
 pyinstaller --noconfirm --clean packaging\relay.spec || (pause & exit /b 1)
 dist\RelayCRM\RelayCRM.exe --selftest

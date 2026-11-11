@@ -17,5 +17,6 @@ a = Analysis([os.path.join(root, "desktop.py")], pathex=[root], binaries=binarie
              hiddenimports=hiddenimports, excludes=["tkinter", "pytest", "PyQt5", "PyQt6", "PySide2", "PySide6", "gi"])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="RelayCRM", console=False,
-          icon=os.path.join(root, "packaging", "icon.ico"), upx=False)
+          icon=os.path.join(root, "packaging", "icon.ico"), upx=False,
+          version=os.path.join(root, "packaging", "version_info.txt"))
 coll = COLLECT(exe, a.binaries, a.datas, name="RelayCRM", upx=False)
