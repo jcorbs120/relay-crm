@@ -10,7 +10,12 @@ Set-Location $root
 $version = (Select-String -Path crm\__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
 Write-Host "Building Relay CRM $version" -ForegroundColor Cyan
 
-if (-not (Test-Path .build-venv)) { py -3 -m venv .build-venv }
+# Use the Python on PATH (3.11/3.12 recommended); "py -3" can pick a newer Python that PyInstaller doesn't support yet.
+if (-not (Test-Path .build-venv)) {
+  $base = Get-Command python -ErrorAction SilentlyContinue
+  if ($base) { & $base.Source -m venv .build-venv } else { py -3.12 -m venv .build-venv; if ($LASTEXITCODE -ne 0) { py -3.11 -m venv .build-venv } }
+}
+& ".build-venv\Scripts\python.exe" --version
 $py = ".build-venv\Scripts\python.exe"
 & $py -m pip install --upgrade pip -q
 & $py -m pip install -r requirements.txt pytest -q
