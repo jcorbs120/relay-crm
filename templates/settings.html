@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% macro sec(section, keys=[]) %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="section" value="{{ section }}">{% for k in keys %}<input type="hidden" name="bool_keys" value="{{ k }}">{% endfor %}{% endmacro %}
+{% macro chk(k, label) %}<label class="check"><input type="checkbox" name="{{ k }}" value="1" {{ 'checked' if S[k]=='1' }}> <span>{{ label|safe }}</span></label>{% endmacro %}
+{% block content %}
+<div class="head"><h1>Settings</h1><span class="muted small">Team-wide. Changes are recorded in the audit log.</span></div>
+<div class="grid" style="grid-template-columns:210px minmax(0,1fr)">
+<nav class="settings-nav card flush" style="padding:8px;align-self:start;position:sticky;top:76px">
+  <a href="#general">General &amp; mode</a><a href="#m365">Microsoft 365</a><a href="#signin">Sign-in &amp; security</a>
+  <a href="#perms">Permissions</a><a href="#capture">Email capture</a><a href="#contacts">Auto-create contacts</a>
+  <a href="#rules">Follow-up rules</a><a href="#pipeline">Pipeline &amp; lists</a><a href="#backup">Backups</a>
+</nav>
+<div>
+
+<!-- ========== general -->
+<div class="card sec-card" id="general">
+  <h2>General &amp; mode</h2>
+  <form method="post" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">{{ sec('general') }}
+    <div class="f" style="margin:0;min-width:320px"><label>Firm / team name</label><input type="text" name="firm_name" value="{{ S.firm_name }}" placeholder="e.g. Meridian Public Sector Advisory"><div class="hint">Shown in the sidebar and available as <code>{firm_name}</code> in email templates.</div></div>
+    <button class="btn sm">Save</button>
+  </form>
+  <form method="post" action="{{ url_for('settings_mode') }}" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line2)"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <span>Mode:</span>
+    {% if S.mode=='demo' %}
+      <span class="badge b-new">Demo: sample data, sample teammates, simulated mailbox</span>
+      <input type="hidden" name="mode" value="live">
+      <label class="check" style="margin:0"><input type="checkbox" name="wipe_demo" value="1" checked> Remove demo records &amp; sample teammates</label>
+      <button class="btn primary sm" onclick="return confirm('Switch the whole team to live mode?')">Switch to live mode</button>
+    {% else %}
+      <span class="badge b-Client">Live: real Microsoft 365 mailboxes</span>
+      <input type="hidden" name="mode" value="demo"><button class="btn sm" onclick="return confirm('Switch back to demo mode? Your data is kept, but demo records are added.')">Switch to demo</button>
+    {% endif %}
+  </form>
+  {% if S.mode=='demo' %}<form method="post" action="{{ url_for('demo_reset') }}" data-confirm="Reset all demo data?" class="mt"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm danger">Reset demo data</button></form>{% endif %}
+</div>
+
+<!-- ========== M365 -->
+<form method="post" class="card sec-card" id="m365">{{ sec('m365') }}
+  <h2>Microsoft 365 app registration</h2>
+  <p class="small muted">You register Relay once for the whole firm. Each person then connects <b>their own</b> mailbox from <i>My profile</i>, and Relay only ever acts with that person's own delegated permissions. Full steps are in <b>AZURE_SETUP.md</b>.</p>
+  <div class="frow">
+    <div class="f"><label>Cloud</label><select name="ms_cloud">{% for k, c in clouds.items() if k!='gcc' %}<option value="{{ k }}" {{ 'selected' if S.ms_cloud==k }}>{{ c.label }}</option>{% endfor %}</select>
+      <div class="hint">GCC (Moderate) uses the Commercial endpoints. GCC High and DoD use the .us clouds.</div></div>
+    <div class="f"><label>Directory (tenant) ID</label><input type="text" name="ms_tenant" value="{{ S.ms_tenant }}" placeholder="tenant GUID or yourfirm.onmicrosoft.com"></div>
+    <div class="f"><label>Application (client) ID</label><input type="text" name="ms_client_id" value="{{ S.ms_client_id }}" placeholder="00000000-0000-0000-0000-000000000000"></div>
+  </div>
+  <h3 class="mt">"Sign in with Microsoft" (recommended for teams)</h3>
+  <p class="small muted">Optional. Lets people sign in to Relay with their work account (MFA, PIV and CAC all apply) and connects their mailbox in the same step. It needs a client secret and the address people use to reach this server.</p>
+  <div class="frow">
+    <div class="f"><label>Server address (base URL)</label><input type="text" name="base_url" value="{{ S.base_url }}" placeholder="https://crm.yourfirm.com"><div class="hint">Add this redirect URI to the app registration (platform <b>Web</b>):<br><code>{{ redirect_uri }}</code></div></div>
+    <div class="f"><label>Client secret {{ '(stored, encrypted)' if secret_set else '(not set)' }}</label><input type="password" name="ms_client_secret" autocomplete="new-password" placeholder="{{ 'Leave blank to keep the current secret' if secret_set else 'Paste the secret Value' }}">
+      {% if secret_set %}<label class="check" style="margin-top:4px"><input type="checkbox" name="clear_secret" value="1"> Remove stored secret</label>{% endif %}
+      <div class="hint">Encrypted at rest with this server's key. Remember to rotate it before it expires.</div></div>
+  </div>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <button class="btn primary sm">Save Microsoft 365 settings</button>
+    <span class="small"><span class="dot {{ 'ok' if configured else 'idle' }}"></span>Mailbox connect {{ 'ready' if configured else 'needs tenant + client ID' }}
+      &nbsp; <span class="dot {{ 'ok' if web_ok else 'idle' }}"></span>Microsoft sign-in {{ 'ready' if web_ok else 'not configured' }}</span>
+  </div>
+  <h3 class="mt">Connected mailboxes ({{ connected|length }})</h3>
+  {% if connected %}<table class="t"><tr><th>Person</th><th>Mailbox</th><th>Last sync</th><th>Status</th></tr>
+    {% for u in connected %}<tr><td><a href="{{ url_for('admin_user_edit', uid=u.id) }}">{{ u.name }}</a></td><td class="small">{{ u.ms_email }}</td><td class="small">{{ u.last_sync_at|ago }}</td>
+      <td class="small"><span class="dot {{ 'ok' if (u.last_sync_status or 'ok')=='ok' else 'bad' }}"></span>{{ u.last_sync_status or 'waiting' }}{% if not u.sync_enabled %} · paused{% endif %}</td></tr>{% endfor %}</table>
+  {% else %}<p class="small muted">Nobody has connected a mailbox yet. Each person does this from <a href="{{ url_for('profile') }}#mailbox">My profile</a>.</p>{% endif %}
+</form>
+
+<!-- ========== sign-in -->
+<form method="post" class="card sec-card" id="signin">{{ sec('signin', ['allow_password_login','allow_ms_login','auto_provision']) }}
+  <h2>Sign-in &amp; security</h2>
+  {{ chk('allow_ms_login', '<b>Allow "Sign in with Microsoft"</b> (needs the client secret and server address above)') }}
+  {{ chk('allow_password_login', '<b>Allow Relay passwords</b>. If you turn this off, administrators can still use their password as a break-glass account.') }}
+  {{ chk('auto_provision', '<b>Auto-create accounts</b> for colleagues the first time they sign in with Microsoft (they get the <i>User</i> role)') }}
+  <div class="frow">
+    <div class="f"><label>…only for these email domains</label><input type="text" name="auto_provision_domains" value="{{ S.auto_provision_domains }}" placeholder="yourfirm.com"><div class="hint">Leave blank to allow anyone in your tenant.</div></div>
+    <div class="f"><label>Sign out after inactivity (minutes)</label><input type="number" name="session_timeout_min" min="5" value="{{ S.session_timeout_min }}"></div>
+    <div class="f"><label>Minimum password length</label><input type="number" name="password_min_length" min="8" max="64" value="{{ S.password_min_length }}"></div>
+  </div>
+  <p class="small muted">Always on: passwords hashed with PBKDF2-SHA256 (600,000 rounds), lock-out after 5 failed attempts for 15 minutes, CSRF protection on every change, encrypted Microsoft tokens, and a full audit trail.</p>
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== permissions -->
+<form method="post" class="card sec-card" id="perms">{{ sec('perms', ['user_can_export','user_can_import','user_can_delete_own']) }}
+  <h2>Permissions</h2>
+  <table class="t" style="margin-bottom:12px">
+    <tr><th></th><th>Administrator</th><th>User</th><th>Read-only</th></tr>
+    <tr><td>View all contacts, organisations, pipeline, reports</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+    <tr><td>Create / edit records, log calls, send email, own tasks</td><td>&#10003;</td><td>&#10003;</td><td>-</td></tr>
+    <tr><td>Connect own mailbox for auto-sync</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td></tr>
+    <tr><td>Manage users, settings, audit log, backups; merge orgs; delete anything</td><td>&#10003;</td><td>-</td><td>-</td></tr>
+  </table>
+  {{ chk('user_can_delete_own', 'Users may delete records <b>they own</b>') }}
+  {{ chk('user_can_export', 'Users and read-only members may <b>export</b> to CSV (exports are audited)') }}
+  {{ chk('user_can_import', 'Users may <b>import</b> contact lists') }}
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== capture -->
+<form method="post" class="card sec-card" id="capture">{{ sec('capture', ['sync_auto','sync_capture','skip_bulk']) }}
+  <h2>Email capture</h2>
+  {{ chk('sync_auto', "<b>Automatic sync</b>: scan each connected person's Inbox and Sent Items and log every email with external contacts.") }}
+  {{ chk('sync_capture', '<b>BCC / forward capture</b>: also log anything in each person\'s capture folder, and in the shared team mailbox if you set one below.') }}
+  <div class="frow mt">
+    <div class="f"><label>Capture folder name (in each person's mailbox)</label><input type="text" name="capture_folder" value="{{ S.capture_folder }}">
+      <div class="hint">Each person can drag emails into this Outlook folder, or set a rule like "sent to <b>name+crm@yourfirm.com</b>, move to {{ S.capture_folder or 'CRM' }}" and BCC that address.</div></div>
+    <div class="f"><label>Shared team capture mailbox (optional)</label><input type="text" name="capture_mailbox" value="{{ S.capture_mailbox }}" placeholder="crm@yourfirm.com">
+      <div class="hint">Anyone can BCC or forward here. Relay works out which teammate sent or forwarded it and credits them.</div></div>
+    <div class="f"><label>Read the shared mailbox using…</label><select name="capture_reader_id"><option value="">— choose a person —</option>
+      {% for u in members if u.role!='viewer' %}<option value="{{ u.id }}" {{ 'selected' if reader and reader.id==u.id }}>{{ u.name }}{{ '' if u.ms_token_cache else ' (mailbox not connected)' }}</option>{% endfor %}</select>
+      <div class="hint">This person needs Full Access to the shared mailbox. After you choose them, they reconnect their mailbox once so Relay can request <code>Mail.Read.Shared</code>.</div></div>
+  </div>
+  <div class="frow">
+    <div class="f"><label>Sync every (minutes)</label><input type="number" name="sync_interval_min" min="2" value="{{ S.sync_interval_min }}"></div>
+    <div class="f"><label>First sync looks back (days)</label><input type="number" name="initial_lookback_days" min="1" value="{{ S.initial_lookback_days }}"><div class="hint">Only applies the first time each mailbox syncs.</div></div>
+  </div>
+  {{ chk('skip_bulk', 'Skip newsletters, mailing lists and auto-replies (detected from message headers)') }}
+  <div class="f"><label>Ignore addresses containing (comma separated)</label><textarea name="ignore_patterns" rows="2">{{ S.ignore_patterns }}</textarea></div>
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== contacts -->
+<form method="post" class="card sec-card" id="contacts">{{ sec('contacts', ['autocreate_cc','auto_promote']) }}
+  <h2>Auto-create contacts from correspondence</h2>
+  <div class="f"><label>When anyone on the team emails a new external address for the first time…</label>
+    <select name="autocreate">
+      <option value="both" {{ 'selected' if S.autocreate=='both' }}>Create a contact for people we email AND people who email us (inbound ones flagged for review)</option>
+      <option value="outbound" {{ 'selected' if S.autocreate=='outbound' }}>Only create contacts for people we email</option>
+      <option value="off" {{ 'selected' if S.autocreate=='off' }}>Never - only log email for existing contacts</option></select>
+    <div class="hint">The new contact is owned by the first teammate who corresponded with them. Colleagues' addresses never become contacts.</div></div>
+  {{ chk('autocreate_cc', 'Also create contacts for people CC\'d on outgoing mail') }}
+  {{ chk('auto_promote', 'Promote a contact from <b>Lead</b> to <b>Prospect</b> once correspondence is two-way') }}
+  <div class="f"><label>Internal domains (never become contacts)</label><input type="text" name="internal_domains" value="{{ S.internal_domains }}" placeholder="yourfirm.com, subsidiary.com"><div class="hint">Every team member's own domain is always treated as internal.</div></div>
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== rules -->
+<form method="post" class="card sec-card" id="rules">{{ sec('rules', ['rule_awaiting_reply','rule_reply_needed']) }}
+  <h2>Follow-up rules</h2>
+  <label class="check"><input type="checkbox" name="rule_awaiting_reply" value="1" {{ 'checked' if S.rule_awaiting_reply=='1' }}> <span>Create an <b>"awaiting reply"</b> task for the sender when a contact hasn't replied after
+    <input type="number" name="followup_days" value="{{ S.followup_days }}" min="1" style="width:70px;display:inline-block;padding:3px 6px"> days</span></label>
+  <label class="check"><input type="checkbox" name="rule_reply_needed" value="1" {{ 'checked' if S.rule_reply_needed=='1' }}> <span>Create a <b>"reply needed"</b> task for the recipient when nobody on the team has answered a contact after
+    <input type="number" name="reply_days" value="{{ S.reply_days }}" min="1" style="width:70px;display:inline-block;padding:3px 6px"> days</span></label>
+  <p class="small muted">If any teammate replies, the task closes automatically, so nobody chases a thread a colleague already answered.</p>
+  <div class="f" style="max-width:260px"><label>"Stale relationship" threshold (days)</label><input type="number" name="stale_days" value="{{ S.stale_days }}"></div>
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== pipeline -->
+<form method="post" class="card sec-card" id="pipeline">{{ sec('pipeline') }}
+  <h2>Pipeline &amp; lists</h2>
+  <div class="f"><label>Pipeline stages (in order, comma separated; keep "Awarded" and "Lost" as the closed stages)</label><input type="text" name="stages" value="{{ S.stages }}"></div>
+  <div class="f"><label>Default probability per stage</label><input type="text" name="stage_probabilities" value="{{ S.stage_probabilities }}"></div>
+  <div class="f"><label>Contact statuses</label><input type="text" name="contact_statuses" value="{{ S.contact_statuses }}"></div>
+  <div class="f"><label>Organisation types</label><input type="text" name="org_types" value="{{ S.org_types }}"></div>
+  <button class="btn primary sm">Save</button>
+</form>
+
+<!-- ========== backup -->
+<form method="post" class="card sec-card" id="backup">{{ sec('backup') }}
+  <h2>Backups</h2>
+  <p class="small">The server takes an automatic snapshot of the database every day. Copy the backups folder to your normal backup system or OneDrive/SharePoint for off-site retention.</p>
+  <div class="f" style="max-width:260px"><label>Keep automatic backups for (days)</label><input type="number" name="backup_keep_days" min="1" value="{{ S.backup_keep_days }}"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm">Save</button><a class="btn sm" href="{{ url_for('backups') }}">Manage backups &rarr;</a></div>
+</form>
+
+</div></div>
+{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

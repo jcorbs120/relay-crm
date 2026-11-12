@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="head"><h1>Users</h1><span class="muted small">{{ rows|selectattr('active')|list|length }} active</span>
+  <div class="actions"><a class="btn primary" href="{{ url_for('admin_user_new') }}">+ Add user</a></div></div>
+<div class="card flush">
+<table class="t"><tr><th>Name</th><th>Role</th><th>Mailbox</th><th>Last sign-in</th><th class="right">Contacts</th><th class="right">Opportunities</th><th class="right">Open tasks</th><th></th></tr>
+{% for u in rows %}<tr class="{{ '' if u.active else 'inactive' }}">
+  <td><div class="who"><span class="avatar sm">{{ u|uinitials }}</span><div><a href="{{ url_for('admin_user_edit', uid=u.id) }}"><b>{{ u.name }}</b></a>{% if u.id==me.id %} <span class="small muted">(you)</span>{% endif %}
+    <div class="small muted">{{ u.email }}{% if u.title %} &middot; {{ u.title }}{% endif %}</div></div></div></td>
+  <td><span class="badge role-{{ u.role }}">{{ ROLES[u.role] }}</span>{% if not u.active %} <span class="badge">Deactivated</span>{% endif %}{% if u.is_demo %} <span class="badge">Demo</span>{% endif %}
+    {% if u.locked_until %}<span class="badge b-overdue">Locked</span>{% endif %}</td>
+  <td class="small">{% if u.ms_token_cache %}<span class="dot {{ 'bad' if 'rror' in (u.last_sync_status or '') else 'ok' }}"></span>{{ u.ms_email or 'connected' }}{% if not u.sync_enabled %} <span class="muted">(paused)</span>{% endif %}{% else %}<span class="dot idle"></span><span class="muted">not connected</span>{% endif %}</td>
+  <td class="small nowrap">{{ u.last_login|ago if u.last_login else 'never' }}</td>
+  <td class="right">{{ u.n_contacts }}</td><td class="right">{{ u.n_opps }}</td><td class="right">{{ u.n_tasks }}</td>
+  <td class="right"><a class="btn sm" href="{{ url_for('admin_user_edit', uid=u.id) }}">Manage</a></td></tr>
+{% endfor %}</table>
+</div>
+<div class="card mt small muted">
+  <b>Roles.</b> <b>Administrators</b> manage users, settings, backups and the audit log, and can do everything a user can.
+  <b>Users</b> work the CRM: add and edit contacts, opportunities, tasks and notes, send email and run reports. Everyone sees all records, and each record shows its owner.
+  <b>Read-only</b> people can browse and run reports but can't change anything. This suits leadership or auditors.
+  Deactivated users can't sign in, and their history stays in place.
+</div>
+{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

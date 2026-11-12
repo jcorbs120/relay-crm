@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sync history{% endblock %}
+{% block content %}
+<div class="head"><h1>Sync history</h1><span class="muted small">Every connected mailbox syncs every {{ S.sync_interval_min }} min while the Relay server is running{% if S.mode!='live' %} (live mode only){% endif %}{% if not is_admin %} · showing your mailbox and the shared capture mailbox{% endif %}</span>
+  {% if is_admin and S.mode=='live' %}<div class="actions"><form method="post" action="{{ url_for('sync_run', all=1) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">&#8635; Sync every mailbox now</button></form></div>{% endif %}</div>
+<div class="card flush">
+{% if rows %}<table class="t"><tr><th>Started</th><th>Mailbox</th><th>Trigger</th><th class="right">Scanned</th><th class="right">Logged</th><th class="right">New contacts</th><th class="right">Tasks +/&#10003;</th><th>Result</th></tr>
+{% for r in rows %}<tr><td class="nowrap">{{ r.started_at|dt }}</td><td class="small">{{ uname(r.user_id) if r.user_id else 'Shared / all' }}</td><td>{{ r.trigger }}</td><td class="right">{{ r.scanned }}</td><td class="right">{{ r.logged }}</td>
+  <td class="right">{{ r.new_contacts }}</td><td class="right">{{ r.tasks_created }} / {{ r.tasks_closed }}</td>
+  <td><span class="dot {{ 'ok' if r.status=='ok' else ('bad' if r.status=='error' else 'idle') }}"></span><span class="small">{{ r.message }}</span></td></tr>{% endfor %}
+</table>{% else %}<div class="empty">No syncs yet.</div>{% endif %}
+</div>
+{% endblock %}

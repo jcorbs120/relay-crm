@@ -1,0 +1,91 @@
+{% macro icon(kind) -%}
+{{ {'email_in':'&#8601;','email_out':'&#8599;','call':'&#9742;','meeting':'&#128197;','note':'&#9998;','stage':'&#9654;','system':'&#9733;'}.get(kind,'&#8226;')|safe }}
+{%- endmacro %}
+
+{% macro kind_label(kind) -%}
+{{ {'email_in':'Email received','email_out':'Email sent','call':'Call','meeting':'Meeting','note':'Note','stage':'Stage change','system':'System'}.get(kind, kind) }}
+{%- endmacro %}
+
+{% macro timeline(acts, show_contact=False, opps=None) %}
+{% if not acts %}<div class="empty">No activity yet.</div>{% else %}
+<ul class="tl">
+{% for a in acts %}
+  <li>
+    <div class="ic {{ a.kind }}">{{ icon(a.kind) }}</div>
+    <div class="bd">
+      <div class="meta">
+        {{ kind_label(a.kind) }}
+        {% if show_contact and a.contact_id %} · <a href="{{ url_for('contact_detail', cid=a.contact_id) }}">{{ display_name(a) }}</a>{% endif %}
+        · {{ a.occurred_at|dt }}
+        {% if a.user_id %}<span class="by" title="Team member">{{ uname(a.user_id) }}</span>{% endif %}
+        {% if a.via and a.via not in ('manual',) %}<span class="via">{{ {'auto-sync':'auto-synced','capture':'BCC / forward','compose':'sent from Relay'}.get(a.via, a.via) }}</span>{% endif %}
+        {% if a.duration_min %} · {{ a.duration_min }} min{% endif %}
+        {% if a.outcome %} · <b>{{ a.outcome }}</b>{% endif %}
+        {% if a.opp_name %} · <a href="{{ url_for('opp_detail', oid=a.opp_id) }}" class="tag">&#9776; {{ a.opp_name }}</a>{% endif %}
+      </div>
+      <div class="subj">{{ a.subject }}</div>
+      {% if a.body %}<div class="txt">{{ a.body }}</div><a href="#" class="more" data-more>Show more</a>{% endif %}
+      {% if opps is not none and can_edit and a.kind in ('email_in','email_out','call','meeting','note') %}
+      <details class="small" style="margin-top:4px"><summary class="muted" style="cursor:pointer">Options</summary>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <form method="post" action="{{ url_for('activity_link', aid=a.id) }}" style="display:flex;gap:6px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="opp_id" style="width:auto;padding:3px 6px"><option value="">— not linked —</option>
+              {% for o in opps %}<option value="{{ o.id }}" {{ 'selected' if o.id==a.opp_id }}>{{ o.name }}</option>{% endfor %}</select>
+            <button class="btn sm">Link to opportunity</button></form>
+          {% if is_admin or (a.user_id == me.id and a.kind in ('call','meeting','note')) %}
+          <form method="post" action="{{ url_for('activity_delete', aid=a.id) }}" data-confirm="Remove this activity from the timeline?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm danger">Remove</button></form>
+          {% endif %}
+        </div></details>
+      {% endif %}
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endmacro %}
+
+{% macro task_row(t, show_contact=True, show_assignee=True) %}
+{% set overdue = t.status=='Open' and t.due_date and t.due_date < today %}
+<tr data-task-row style="{{ 'opacity:.5;text-decoration:line-through' if t.status=='Done' }}">
+  <td style="width:28px"><input type="checkbox" data-toggle-task="{{ t.id }}" {{ 'checked' if t.status=='Done' }} {{ 'disabled' if not can_edit }}></td>
+  <td><b>{{ t.title }}</b>
+    {% if t.auto_rule %}<span class="badge b-auto" title="Created by email follow-up rules; closes automatically when correspondence is detected">auto</span>{% endif %}
+    {% if t.notes %}<div class="small muted">{{ t.notes }}</div>{% endif %}</td>
+  {% if show_contact %}<td>{% if t.contact_id %}<a href="{{ url_for('contact_detail', cid=t.contact_id) }}">{{ display_name(t) }}</a>{% endif %}</td>{% endif %}
+  {% if show_assignee %}<td>{% if t.assigned_to %}<span class="owner"><span class="avatar xs">{{ uname(t.assigned_to)[:1] }}</span>{{ uname(t.assigned_to) }}</span>{% else %}<span class="muted small">Unassigned</span>{% endif %}</td>{% endif %}
+  <td class="nowrap">{% if overdue %}<span class="badge b-overdue">{{ t.due_date|d }}</span>{% else %}{{ t.due_date|d }}{% endif %}</td>
+  <td><span class="badge b-{{ t.priority }}">{{ t.priority }}</span></td>
+  <td class="nowrap right">
+    {% if can_edit %}
+    {% if t.status=='Open' %}
+    {% if t.contact_id %}<a class="btn sm" href="{{ url_for('compose', contact=t.contact_id, template=3 if t.auto_rule=='awaiting_reply' else None) }}" title="Email">&#9993;</a>{% endif %}
+    <form method="post" action="{{ url_for('task_snooze', tid=t.id) }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="days" value="3"><button class="btn sm" title="Snooze 3 days">+3d</button></form>
+    {% endif %}
+    <form method="post" action="{{ url_for('task_delete', tid=t.id) }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm ghost" title="Delete">&#10005;</button></form>
+    {% endif %}
+  </td>
+</tr>
+{% endmacro %}
+
+{# Mine / Team / person picker. Keeps other query args. #}
+{% macro scope_picker(sel, endpoint, args={}) %}
+<div class="scope" role="group" aria-label="Whose records">
+  <a href="{{ url_for(endpoint, owner='mine', **args) }}" class="{{ 'on' if sel=='mine' }}">Mine</a>
+  <a href="{{ url_for(endpoint, owner='all', **args) }}" class="{{ 'on' if sel=='all' }}">Whole team</a>
+  <select onchange="if(this.value)location=this.value" title="Show one person's records">
+    <option value="">Person…</option>
+    {% for u in team %}<option value="{{ url_for(endpoint, owner=u.id, **args) }}" {{ 'selected' if sel==u.id|string }}>{{ u.name }}</option>{% endfor %}
+    <option value="{{ url_for(endpoint, owner='none', **args) }}" {{ 'selected' if sel=='none' }}>Unassigned</option>
+  </select>
+</div>
+{% endmacro %}
+
+{% macro owner_select(members, current, name='owner_id', label='Owner', allow_none=True) %}
+<div class="f"><label>{{ label }}</label>
+  <select name="{{ name }}">
+    {% if allow_none %}<option value="none" {{ 'selected' if not current }}>— Unassigned —</option>{% endif %}
+    {% for u in members %}<option value="{{ u.id }}" {{ 'selected' if u.id==current }}>{{ u.name }}{{ ' (you)' if u.id==me.id }}</option>{% endfor %}
+  </select></div>
+{% endmacro %}
+
+{% macro owner_chip(uid) %}{% if uid %}<span class="owner"><span class="avatar xs">{{ uname(uid)[:1] }}</span>{{ uname(uid) }}</span>{% else %}<span class="muted small">Unassigned</span>{% endif %}{% endmacro %}

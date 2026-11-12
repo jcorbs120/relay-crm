@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% from "_macros.html" import scope_picker with context %}
+{% block title %}Pipeline{% endblock %}
+{% block content %}
+<div class="head"><h1>Pipeline</h1>
+  {{ scope_picker(sel, 'pipeline') }}
+  <form class="filters" method="get" style="margin:0">
+    <input type="hidden" name="owner" value="{{ sel }}">
+    <select name="type" onchange="this.form.submit()"><option value="">All org types</option>{% for x in org_types %}<option {{ 'selected' if x==t }}>{{ x }}</option>{% endfor %}</select>
+    <label class="check" style="margin:0"><input type="checkbox" name="closed" value="0" {{ 'checked' if show_closed=='0' }} onchange="this.form.submit()"> Hide Awarded / Lost</label>
+  </form>
+  <div class="actions"><a class="btn" href="{{ url_for('report_view', key='pipeline') }}">&#128200; Pipeline report</a>{% if can_edit %}<a class="btn primary" href="{{ url_for('opp_new') }}">+ Opportunity</a>{% endif %}</div></div>
+<p class="muted small" style="margin-top:-8px">{% if can_edit %}Drag cards between stages.{% endif %} Probability updates to the stage default, and the change is logged on the timeline.</p>
+<div class="board">
+{% for stage, items in cols.items() %}
+  <div class="col {{ 'won' if stage==won_lost[0] else ('lost' if stage==won_lost[1] else '') }}" data-stage="{{ stage }}">
+    <div class="col-h"><b>{{ stage }}</b><span class="cnt">{{ items|length }}</span><span class="sum">{{ items|sum(attribute='value')|money }}</span></div>
+    <div class="col-b">
+      {% for p in items %}
+      <div class="opp" {{ 'draggable=true' if can_edit }} data-id="{{ p.id }}" data-value="{{ p.value or 0 }}" style="{{ 'border-left-color:var(--ok)' if stage==won_lost[0] else ('border-left-color:var(--bad)' if stage==won_lost[1] else '') }}">
+        <a class="nm" href="{{ url_for('opp_detail', oid=p.id) }}">{{ p.name }}</a>
+        <div class="og">{{ p.org_name or '' }}{% if p.contact_id %} · {{ display_name(p) }}{% endif %}</div>
+        {% if p.solicitation_no or p.contract_vehicle %}<div class="og small">{{ p.solicitation_no }}{% if p.solicitation_no and p.contract_vehicle %} · {% endif %}{{ p.contract_vehicle }}</div>{% endif %}
+        {% if p.owner_id and sel!='mine' %}<div class="small" style="margin-top:3px"><span class="owner"><span class="avatar xs">{{ uname(p.owner_id)[:1] }}</span>{{ uname(p.owner_id) }}</span></div>{% endif %}
+        <div class="ft"><span class="val">{{ p.value|money }}</span><span class="muted">{{ p.probability }}% · {{ p.close_date|d }}</span></div>
+        {% if p.last_act %}<div class="small muted" style="margin-top:3px">&#9993; last activity {{ p.last_act|ago }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      {% if can_edit %}<a class="col-add" href="{{ url_for('opp_new', stage=stage) }}">+ Add</a>{% endif %}
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

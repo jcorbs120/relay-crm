@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_macros.html" import task_row, scope_picker, owner_select with context %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<div class="head"><h1>Tasks &amp; follow-ups</h1><div class="actions">{{ scope_picker(sel, 'tasks', {'view': view}) }}{% if can_edit %}<button class="btn primary" data-modal="taskModal">+ New task</button>{% endif %}</div></div>
+<div class="tabs">
+  {% for k, l in [('open','All open'),('today','Due / overdue'),('auto','Auto follow-ups'),('done','Completed')] %}
+  <a href="{{ url_for('tasks', view=k, owner=sel) }}" class="{{ 'on' if view==k }}">{{ l }}</a>{% endfor %}
+</div>
+{% if view=='auto' %}<p class="small muted">These were created by the team's email rules and assigned to whoever was on the thread: <b>awaiting reply</b> (you emailed someone and they haven't replied in {{ S.followup_days }} days) and <b>reply needed</b> (someone emailed you and you haven't replied in {{ S.reply_days }} days). They close automatically as soon as the next email in either direction syncs. {% if is_admin %}Change the rules in <a href="{{ url_for('settings') }}#rules">Settings</a>.{% endif %}</p>{% endif %}
+<div class="card flush">
+  {% if rows %}<table class="t"><tr><th></th><th>Task</th><th>Contact</th><th>Assigned to</th><th>Due</th><th>Priority</th><th></th></tr>
+  {% for t in rows %}{{ task_row(t) }}{% endfor %}</table>
+  {% else %}<div class="empty">Nothing here.</div>{% endif %}
+</div>
+<div class="modal-bg" id="taskModal"><div class="modal"><h2>New task</h2>
+  <form method="post" action="{{ url_for('task_new') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="f"><label>Task</label><input type="text" name="title" required></div>
+    <div class="frow">
+      <div class="f"><label>Contact</label><select name="contact_id"><option value="">—</option>{% for c in contacts %}<option value="{{ c.id }}">{{ display_name(c) }}</option>{% endfor %}</select></div>
+      <div class="f"><label>Due</label><input type="date" name="due_date"></div>
+      <div class="f"><label>Priority</label><select name="priority"><option>Normal</option><option>High</option><option>Low</option></select></div>
+      {{ owner_select(members, me.id, name='assigned_to', label='Assign to') }}
+    </div>
+    <div class="f"><label>Notes</label><textarea name="notes" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Add</button></div>
+  </form></div></div>
+{% endblock %}

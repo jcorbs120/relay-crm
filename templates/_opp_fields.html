@@ -1,0 +1,26 @@
+<div class="f"><label>Opportunity name</label><input type="text" name="name" value="{{ p.name if p }}" required placeholder="e.g. CISA Zero Trust Architecture Support"></div>
+<div class="frow">
+  <div class="f"><label>Organisation</label><select name="org_id"><option value="">— from contact —</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if (p and p.org_id==o.id) or (preset_org is defined and preset_org==o.id) }}>{{ o.name }}</option>{% endfor %}</select></div>
+  <div class="f"><label>Primary contact</label><select name="contact_id"><option value="">—</option>{% for c in contacts %}<option value="{{ c.id }}" {{ 'selected' if (p and p.contact_id==c.id) or (preset_contact is defined and preset_contact==c.id) }}>{{ display_name(c) }}{% if c.email %} ({{ c.email }}){% endif %}</option>{% endfor %}</select><div class="hint">Emails with this contact are linked to this opportunity automatically.</div></div>
+</div>
+<div class="frow">
+  <div class="f"><label>Stage</label><select name="stage" id="stageSel">{% for s in stages %}<option {{ 'selected' if (p and p.stage==s) or (not p and preset_stage==s) }}>{{ s }}</option>{% endfor %}</select></div>
+  <div class="f"><label>Value ($)</label><input type="text" name="value" value="{{ '%.0f'|format(p.value) if p else '' }}" placeholder="250000"></div>
+  <div class="f"><label>Probability %</label><input type="number" name="probability" id="probIn" min="0" max="100" value="{{ p.probability if p else '' }}"></div>
+  <div class="f"><label>Expected award / close</label><input type="date" name="close_date" value="{{ p.close_date or '' if p }}"></div>
+</div>
+<div class="frow">
+  <div class="f"><label>Solicitation / RFP #</label><input type="text" name="solicitation_no" value="{{ p.solicitation_no if p }}"></div>
+  <div class="f"><label>Contract vehicle</label><input type="text" name="contract_vehicle" value="{{ p.contract_vehicle if p }}" placeholder="GSA MAS, OASIS+, SEWP, state cooperative…"></div>
+</div>
+<div class="frow">
+  <div class="f"><label>Capture lead / owner</label><select name="owner_id"><option value="none" {{ 'selected' if p and not p.owner_id }}>— Unassigned —</option>
+    {% for u in members %}<option value="{{ u.id }}" {{ 'selected' if (p and p.owner_id==u.id) or (not p and u.id==me.id) }}>{{ u.name }}{{ ' (you)' if u.id==me.id }}</option>{% endfor %}</select></div>
+</div>
+<div class="f"><label>Notes</label><textarea name="notes" rows="4">{{ p.notes if p }}</textarea></div>
+<script>
+(function(){const raw={{ S.stage_probabilities|tojson }}.split(",").map(x=>x.split(":"));const m={};raw.forEach(([k,v])=>m[(k||"").trim()]=v);
+const s=document.getElementById("stageSel"),pi=document.getElementById("probIn");
+if(!pi.value&&m[s.value])pi.value=m[s.value];
+s.addEventListener("change",()=>{if(m[s.value]!==undefined)pi.value=m[s.value]});})();
+</script>

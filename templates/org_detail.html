@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% from "_macros.html" import timeline, owner_select with context %}
+{% block title %}{{ o.name }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ o.name }}</h1>{% if o.org_type %}<span class="badge">{{ o.org_type }}</span>{% endif %}
+  <div class="actions">{% if can_edit %}<a class="btn" href="{{ url_for('contact_new', org=o.id) }}">+ Contact</a><a class="btn primary" href="{{ url_for('opp_new', org=o.id) }}">+ Opportunity</a>{% endif %}</div></div>
+<div class="grid g-side-l">
+  <div class="grid" style="align-content:start">
+    <form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="f"><label>Name</label><input type="text" name="name" value="{{ o.name }}" required></div>
+      <div class="frow"><div class="f"><label>Type</label><select name="org_type"><option></option>{% for x in org_types %}<option {{ 'selected' if x==o.org_type }}>{{ x }}</option>{% endfor %}</select></div>
+        <div class="f"><label>Email domain</label><input type="text" name="domain" value="{{ o.domain or '' }}"></div></div>
+      <div class="frow"><div class="f"><label>Phone</label><input type="text" name="phone" value="{{ o.phone }}"></div>{{ owner_select(members, o.owner_id, label='Account owner') }}</div>
+      <div class="f"><label>Website</label><input type="text" name="website" value="{{ o.website }}"></div>
+      <div class="f"><label>Address</label><input type="text" name="address" value="{{ o.address }}"></div>
+      <div class="f"><label>Notes</label><textarea name="notes" rows="4">{{ o.notes }}</textarea></div>
+      {% if can_edit %}<button class="btn primary">Save</button>{% endif %}
+    </form>
+    {% if is_admin or can_delete(o.owner_id) %}
+    <div class="card">
+      {% if is_admin %}<h3>Merge into another organisation</h3>
+      <form method="post" action="{{ url_for('org_merge', oid=o.id) }}" data-confirm="Move all contacts, opportunities and history into the selected organisation and delete this one?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="f"><select name="target"><option value="">Select…</option>{% for x in all_orgs %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></div>
+        <button class="btn sm">Merge</button></form>{% endif %}
+      <form method="post" action="{{ url_for('org_delete', oid=o.id) }}" data-confirm="Delete organisation? Contacts are kept." class="mt"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm danger">Delete organisation</button></form>
+    </div>
+    {% endif %}
+  </div>
+  <div class="grid" style="align-content:start">
+    <div class="card flush"><div class="card-h"><h2>People ({{ people|length }})</h2></div>
+      {% if people %}<table class="t"><tr><th>Name</th><th>Title</th><th>Status</th><th>Owner</th><th>Last contacted</th></tr>
+      {% for c in people %}<tr><td><a href="{{ url_for('contact_detail', cid=c.id) }}"><b>{{ display_name(c) }}</b></a><div class="small muted">{{ c.email }}</div></td><td>{{ c.title }}</td><td><span class="badge b-{{ c.status }}">{{ c.status }}</span></td><td class="small">{{ uname(c.owner_id) }}</td><td>{{ c.last_contacted|ago }}</td></tr>{% endfor %}</table>
+      {% else %}<div class="empty">No contacts.</div>{% endif %}</div>
+    <div class="card flush"><div class="card-h"><h2>Opportunities</h2></div>
+      {% if opps %}<table class="t"><tr><th>Name</th><th>Stage</th><th>Owner</th><th class="right">Value</th><th>Close</th></tr>
+      {% for p in opps %}<tr><td><a href="{{ url_for('opp_detail', oid=p.id) }}">{{ p.name }}</a></td><td>{{ p.stage }}</td><td class="small">{{ uname(p.owner_id) }}</td><td class="right">{{ p.value|money }}</td><td>{{ p.close_date|d }}</td></tr>{% endfor %}</table>
+      {% else %}<div class="empty">No opportunities.</div>{% endif %}</div>
+    <div class="card flush"><div class="card-h"><h2>Recent activity</h2></div><div class="card-b">{{ timeline(acts, show_contact=True) }}</div></div>
+  </div>
+</div>
+{% endblock %}

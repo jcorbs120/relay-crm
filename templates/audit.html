@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="head"><h1>Audit log</h1><span class="muted small">Who did what and when: sign-ins, changes, exports and admin actions</span>
+  <div class="actions"><a class="btn" href="{{ url_for('audit_csv', **f.to_dict()) }}">&#8681; Export CSV</a></div></div>
+<form class="filters card" method="get">
+  <select name="user"><option value="">Everyone</option>{% for u in all_users %}<option value="{{ u.id }}" {{ 'selected' if f.user==u.id|string }}>{{ u.name }}</option>{% endfor %}</select>
+  <select name="action"><option value="">Any action</option>{% for a in actions %}<option {{ 'selected' if f.action==a }}>{{ a }}</option>{% endfor %}</select>
+  <select name="entity"><option value="">Any record type</option>{% for e in entities %}<option {{ 'selected' if f.entity==e }}>{{ e }}</option>{% endfor %}</select>
+  <label class="small">From <input type="date" name="since" value="{{ f.since or '' }}"></label>
+  <label class="small">To <input type="date" name="until" value="{{ f.until or '' }}"></label>
+  <input type="text" name="q" value="{{ f.q or '' }}" placeholder="Search details…">
+  <button class="btn">Filter</button>{% if f %}<a class="btn" href="{{ url_for('audit_view') }}">Clear</a>{% endif %}
+</form>
+<div class="card flush mt">
+{% if rows %}<table class="t"><tr><th>Time</th><th>Who</th><th>Action</th><th>Record</th><th>Detail</th><th>IP</th></tr>
+{% for r in rows %}<tr><td class="nowrap small">{{ r.ts|dt }}</td><td class="small">{{ r.user_label or (uname(r.user_id) if r.user_id else 'system') }}</td>
+  <td><span class="badge {{ 'b-overdue' if r.action in ('delete','login_failed','locked') else '' }}">{{ r.action }}</span></td>
+  <td class="small nowrap">{{ r.entity }}{% if r.entity_id %} #{{ r.entity_id }}{% endif %}</td><td class="small">{{ r.detail }}</td><td class="small muted">{{ r.ip }}</td></tr>{% endfor %}
+</table>{% if rows|length >= 500 %}<div class="small muted" style="padding:8px 16px">Showing the latest 500. Narrow the filters or export the CSV for everything.</div>{% endif %}
+{% else %}<div class="empty">No matching entries.</div>{% endif %}
+</div>
+{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

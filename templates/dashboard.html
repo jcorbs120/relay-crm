@@ -1,0 +1,73 @@
+{% extends "base.html" %}{% from "_macros.html" import timeline, task_row, scope_picker with context %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ greeting }}, {{ me.name.split()[0] }}</h1>
+  <div class="actions">{{ scope_picker(sel, 'dashboard') }}
+    {% if can_edit %}<a class="btn" href="{{ url_for('contact_new') }}">+ Contact</a><a class="btn" href="{{ url_for('opp_new') }}">+ Opportunity</a>{% endif %}</div></div>
+<p class="muted small" style="margin:-8px 0 14px">Showing {{ {'mine':'your records','all':'the whole team','none':'unassigned records'}.get(sel, uname(sel|int) ~ "'s records") }}.</p>
+
+<div class="kpis">
+  <div class="kpi"><div class="l">Contacts</div><div class="v">{{ kpi.contacts }}</div><div class="s">+{{ kpi.new30 }} in last 30 days</div></div>
+  <div class="kpi"><div class="l">Open pipeline</div><div class="v">{{ kpi.open_value|money }}</div><div class="s">{{ kpi.weighted|money }} weighted</div></div>
+  <div class="kpi"><div class="l">Emails logged (7d)</div><div class="v">{{ kpi.emails7 }}</div><div class="s">auto-captured from Outlook</div></div>
+  <div class="kpi {{ 'alert' if kpi.overdue }}"><div class="l">Overdue follow-ups</div><div class="v">{{ kpi.overdue }}</div><div class="s"><a href="{{ url_for('tasks', view='today', owner=sel) }}">view tasks</a></div></div>
+</div>
+
+<div class="card mb">
+  <div style="display:flex;align-items:center;margin-bottom:10px"><h2 style="margin:0">Pipeline</h2><a class="small" style="margin-left:auto" href="{{ url_for('pipeline', owner=sel) }}">Open board &rarr;</a></div>
+  <div class="pipe-mini">
+  {% for s in stages %}{% set r = pmap.get(s) %}
+    <a href="{{ url_for('pipeline') }}"><div class="s">{{ s }} · {{ r.n if r else 0 }}</div><div class="v" style="{{ 'color:var(--ok)' if s==won_lost[0] else ('color:var(--bad)' if s==won_lost[1] else '') }}">{{ (r.v if r else 0)|money }}</div></a>
+  {% endfor %}
+  </div>
+</div>
+
+<div class="grid g-side">
+  <div class="grid" style="align-content:start">
+    <div class="card flush">
+      <div class="card-h"><h2>Follow-ups &amp; tasks</h2><a class="r small" href="{{ url_for('tasks') }}">All tasks &rarr;</a></div>
+      {% if tasks %}<table class="t">{% for t in tasks %}{{ task_row(t, show_assignee=(sel!='mine')) }}{% endfor %}</table>
+      {% else %}<div class="empty">Nothing due. Nice work.</div>{% endif %}
+    </div>
+    <div class="card flush">
+      <div class="card-h"><h2>Recent correspondence &amp; activity</h2></div>
+      <div class="card-b">{{ timeline(feed, show_contact=True) }}</div>
+    </div>
+  </div>
+  <div class="grid" style="align-content:start">
+    {% if leaderboard %}
+    <div class="card flush">
+      <div class="card-h"><h2>Team at a glance</h2><a class="r small" href="{{ url_for('report_view', key='team') }}">Team report &rarr;</a></div>
+      {% set maxa = (leaderboard|map(attribute='acts')|max) or 1 %}
+      <table class="t lb">
+        <tr><th>Person</th><th class="right">Touches 30d</th><th class="right">Open pipeline</th><th class="right">Overdue</th></tr>
+        {% for u in leaderboard %}
+        <tr><td><a href="{{ url_for('dashboard', owner=u.id) }}" class="owner"><span class="avatar xs">{{ u.name[:1] }}</span>{{ u.name }}</a>
+              <div class="bar"><i style="width:{{ (u.acts / maxa * 100)|round }}%"></i></div></td>
+            <td class="right">{{ u.acts }}</td><td class="right">{{ u.pipe|money }}</td>
+            <td class="right">{% if u.overdue %}<span class="badge b-overdue">{{ u.overdue }}</span>{% else %}0{% endif %}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% endif %}
+    <div class="card flush">
+      <div class="card-h"><h2>New from email</h2><span class="r small muted">review</span></div>
+      {% if review %}
+      <table class="t">{% for c in review %}
+        <tr><td><div class="who"><div class="avatar">{{ c|initials }}</div><div><a class="n" href="{{ url_for('contact_detail', cid=c.id) }}">{{ display_name(c) }}</a><div class="e">{{ c.email }}{% if c.org_name %} · {{ c.org_name }}{% endif %}</div></div></div></td>
+          <td class="right nowrap">{% if can_edit %}<form method="post" action="{{ url_for('contact_approve', cid=c.id) }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm" title="Keep">&#10003;</button></form>
+            <a class="btn sm" href="{{ url_for('contact_edit', cid=c.id) }}" title="Edit">&#9998;</a>{% endif %}</td></tr>
+      {% endfor %}</table>
+      <div class="card-b small muted" style="border-top:1px solid var(--line2)">People who email the team for the first time are added automatically and flagged here. People a teammate emails first are added without review and owned by that person.</div>
+      {% else %}<div class="empty small">No new contacts waiting for review.</div>{% endif %}
+    </div>
+    <div class="card flush">
+      <div class="card-h"><h2>Upcoming closes</h2></div>
+      {% if closing %}<table class="t">{% for p in closing %}
+        <tr><td><a href="{{ url_for('opp_detail', oid=p.id) }}"><b>{{ p.name }}</b></a><div class="small muted">{{ p.org_name or '' }} · {{ p.stage }}{% if sel!='mine' and p.owner_id %} · {{ uname(p.owner_id) }}{% endif %}</div></td>
+            <td class="right nowrap"><b>{{ p.value|money }}</b><div class="small muted">{{ p.close_date|d }}</div></td></tr>
+      {% endfor %}</table>{% else %}<div class="empty small">No open opportunities.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

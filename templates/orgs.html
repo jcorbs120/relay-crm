@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% from "_macros.html" import owner_select, owner_chip with context %}
+{% block title %}Organisations{% endblock %}
+{% block content %}
+<div class="head"><h1>Organisations</h1><span class="muted">{{ rows|length }}</span>
+  <div class="actions">{% if can_edit %}<button class="btn primary" data-modal="orgModal">+ New organisation</button>{% endif %}</div></div>
+<form class="filters" method="get">
+  <input type="search" name="q" value="{{ q }}" placeholder="Name or email domain">
+  <select name="type" onchange="this.form.submit()"><option value="">All types</option>{% for x in org_types %}<option {{ 'selected' if x==t }}>{{ x }}</option>{% endfor %}</select>
+  <button class="btn">Filter</button>
+</form>
+<div class="card flush">
+  {% if rows %}<table class="t">
+    <tr><th>Organisation</th><th>Type</th><th>Email domain</th><th>Account owner</th><th class="right">Contacts</th><th class="right">Open pipeline</th><th>Last contact</th></tr>
+    {% for o in rows %}<tr>
+      <td><a href="{{ url_for('org_detail', oid=o.id) }}"><b>{{ o.name }}</b></a></td>
+      <td>{% if o.org_type %}<span class="badge">{{ o.org_type }}</span>{% endif %}</td>
+      <td class="small muted">{{ o.domain or '' }}</td><td>{{ owner_chip(o.owner_id) }}</td>
+      <td class="right">{{ o.nc }}</td><td class="right">{{ o.ov|money }}</td><td>{{ o.last|ago }}</td></tr>{% endfor %}
+  </table>{% else %}<div class="empty">No organisations yet. They're created automatically from email domains.</div>{% endif %}
+</div>
+<div class="modal-bg" id="orgModal"><div class="modal"><h2>New organisation</h2>
+  <form method="post" action="{{ url_for('org_new') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="f"><label>Name</label><input type="text" name="name" required></div>
+    <div class="frow"><div class="f"><label>Type</label><select name="org_type"><option></option>{% for x in org_types %}<option>{{ x }}</option>{% endfor %}</select></div>
+      <div class="f"><label>Email domain</label><input type="text" name="domain" placeholder="agency.gov"><div class="hint">New senders from this domain are linked here.</div></div></div>
+    <div class="frow"><div class="f"><label>Phone</label><input type="text" name="phone"></div><div class="f"><label>Website</label><input type="text" name="website"></div></div>
+    <div class="frow"><div class="f"><label>Address</label><input type="text" name="address"></div>{{ owner_select(members, me.id, label='Account owner') }}</div>
+    <div class="f"><label>Notes</label><textarea name="notes" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Create</button></div>
+  </form></div></div>
+{% endblock %}

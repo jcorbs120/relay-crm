@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Relay CRM{% endblock %} · {{ S.firm_name or 'Relay CRM' }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f4e8c'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>R</text></svg>">
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+{% set ep = request.endpoint or '' %}
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">R</div><div>Relay CRM{% if S.firm_name %}<div class="firm">{{ S.firm_name }}</div>{% endif %}</div></div>
+    <nav class="nav">
+      <a href="{{ url_for('dashboard') }}" class="{{ 'on' if ep=='dashboard' }}"><span class="ico">&#9638;</span>Dashboard</a>
+      <a href="{{ url_for('contacts') }}" class="{{ 'on' if ep.startswith('contact') }}"><span class="ico">&#9787;</span>Contacts
+        {% if nav_review %}<span class="pill" title="New contacts from email awaiting review">{{ nav_review }}</span>{% endif %}</a>
+      <a href="{{ url_for('orgs') }}" class="{{ 'on' if ep.startswith('org') }}"><span class="ico">&#127963;</span>Organisations</a>
+      <a href="{{ url_for('pipeline') }}" class="{{ 'on' if ep.startswith('pipeline') or ep.startswith('opp') }}"><span class="ico">&#9776;</span>Pipeline</a>
+      <a href="{{ url_for('tasks') }}" class="{{ 'on' if ep.startswith('task') }}"><span class="ico">&#10003;</span>Tasks
+        {% if nav_tasks %}<span class="pill" title="Your tasks due today or overdue">{{ nav_tasks }}</span>{% endif %}</a>
+      {% if can_edit %}<a href="{{ url_for('compose') }}" class="{{ 'on' if ep=='compose' }}"><span class="ico">&#9993;</span>Compose email</a>{% endif %}
+      <a href="{{ url_for('reports_home') }}" class="{{ 'on' if ep.startswith('report') }}"><span class="ico">&#128200;</span>Reports</a>
+      <div class="sec">Tools</div>
+      {% if can_import %}<a href="{{ url_for('import_view') }}" class="{{ 'on' if ep.startswith('import') }}"><span class="ico">&#8679;</span>Import contacts</a>{% endif %}
+      <a href="{{ url_for('templates_view') }}" class="{{ 'on' if ep=='templates_view' }}"><span class="ico">&#9998;</span>Email templates</a>
+      <a href="{{ url_for('sync_log') }}" class="{{ 'on' if ep=='sync_log' }}"><span class="ico">&#8635;</span>Sync history</a>
+      <a href="{{ url_for('profile') }}" class="{{ 'on' if ep.startswith('profile') }}"><span class="ico">&#9786;</span>My profile &amp; mailbox</a>
+      {% if is_admin %}
+      <div class="sec">Admin</div>
+      <a href="{{ url_for('admin_users') }}" class="{{ 'on' if ep.startswith('admin_user') }}"><span class="ico">&#128101;</span>Team &amp; users</a>
+      <a href="{{ url_for('settings') }}" class="{{ 'on' if ep.startswith('settings') }}"><span class="ico">&#9881;</span>Settings</a>
+      <a href="{{ url_for('audit_view') }}" class="{{ 'on' if ep.startswith('audit') }}"><span class="ico">&#128220;</span>Audit log</a>
+      <a href="{{ url_for('backups') }}" class="{{ 'on' if ep.startswith('backup') }}"><span class="ico">&#128190;</span>Backups</a>
+      {% endif %}
+    </nav>
+    <div class="side-foot">
+      <span class="mode {{ S.mode }}">{{ 'DEMO MODE' if S.mode=='demo' else 'LIVE · M365' }}</span>
+      <div class="small" style="color:#5d6b82;margin-top:6px">v{{ version }} · team edition</div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <div class="search"><input id="gsearch" type="search" placeholder="Search contacts, agencies, opportunities, solicitation #…" autocomplete="off"><div id="gresults" class="sresults"></div></div>
+      <div class="syncbox">
+        {% if last_sync %}<span title="{{ last_sync.message }}"><span class="dot {{ 'ok' if last_sync.status=='ok' else ('bad' if last_sync.status=='error' else 'idle') }}"></span>Last sync {{ last_sync.started_at|ago }}</span>{% else %}<span><span class="dot idle"></span>Never synced</span>{% endif %}
+        {% if can_edit %}
+        <button class="btn sm" id="syncBtn" title="Check your mailbox now">&#8635; Sync email</button>
+        <a class="btn sm primary" href="{{ url_for('compose') }}">&#9993; New email</a>
+        {% endif %}
+        <div class="umenu">
+          <button class="ubtn" id="userMenuBtn" type="button" title="{{ me.name }} ({{ ROLES[me.role] }})"><span class="avatar sm">{{ me|uinitials }}</span><span class="uname">{{ me.name.split(' ')[0] }}</span> &#9662;</button>
+          <div class="udrop" id="userMenu">
+            <div class="uhead"><b>{{ me.name }}</b><div class="small muted">{{ me.email }}</div><span class="badge role-{{ me.role }}">{{ ROLES[me.role] }}</span></div>
+            <a href="{{ url_for('profile') }}">My profile</a>
+            <a href="{{ url_for('profile') }}#mailbox">My mailbox connection</a>
+            <a href="{{ url_for('profile') }}#password">Change password</a>
+            <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="linkbtn">Sign out</button></form>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="content">
+      {% if S.mode=='demo' and not ep.startswith('settings') %}
+      <div class="banner">&#9888; <span><b>Demo mode.</b> Sample public-sector data, two sample teammates (Jordan and Sam) and a simulated mailbox. Click <b>Sync email</b> to watch new correspondence update records automatically.</span>
+        {% if is_admin %}<a class="btn sm" href="{{ url_for('settings') }}#m365">Go live with Microsoft 365</a>{% endif %}</div>
+      {% endif %}
+      {% if me.role == 'viewer' %}<div class="flash ok" style="padding:8px 14px">You have <b>read-only</b> access.</div>{% endif %}
+      {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}{% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

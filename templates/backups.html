@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block content %}
+<div class="head"><h1>Backups</h1><span class="muted small">Last automatic backup: {{ last|dt if last else 'none yet' }}</span>
+  <div class="actions">
+    <form method="post" action="{{ url_for('backup_now') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn primary">Back up now</button></form>
+    <a class="btn" href="{{ url_for('backup_download') }}">&#8681; Download current database</a></div></div>
+<div class="card small">
+  Relay automatically saves a consistent copy of the whole team database every day{% if S.backup_keep_days %} and keeps {{ S.backup_keep_days }} days of them{% endif %}.
+  Backups are stored on the server in <code>{{ folder }}</code>. For real protection, make sure that folder is also covered by your organisation's server backup, or copy it off the machine.
+  <br><b>To restore:</b> stop the Relay service, replace <code>relay.db</code> in the data folder with a backup file (renamed to <code>relay.db</code>), then start the service again.
+</div>
+<div class="card flush mt">
+{% if files %}<table class="t"><tr><th>File</th><th>Created</th><th class="right">Size</th><th></th></tr>
+{% for b in files %}<tr><td><code>{{ b.name }}</code></td><td class="small">{{ b.when }}</td><td class="right small">{{ '%.1f'|format(b.size/1048576) }} MB</td>
+  <td class="right"><a class="btn sm" href="{{ url_for('backup_file', name=b.name) }}">Download</a></td></tr>{% endfor %}
+</table>{% else %}<div class="empty">No backups yet. Click <b>Back up now</b>.</div>{% endif %}
+</div>
+<p class="small muted mt">Backups hold every contact, email and note. Store downloaded copies as carefully as the server itself.</p>
+{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

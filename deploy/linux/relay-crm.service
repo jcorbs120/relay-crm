@@ -1,0 +1,26 @@
+# systemd unit for Relay CRM.
+#   sudo useradd --system --home /var/lib/relay-crm --shell /usr/sbin/nologin relay
+#   sudo mkdir -p /opt/relay-crm /var/lib/relay-crm && sudo chown relay: /var/lib/relay-crm && sudo chmod 700 /var/lib/relay-crm
+#   sudo cp -r . /opt/relay-crm && cd /opt/relay-crm && sudo python3 -m venv .venv && sudo .venv/bin/pip install -r requirements.txt
+#   sudo cp deploy/linux/relay-crm.service /etc/systemd/system/ && sudo systemctl enable --now relay-crm
+[Unit]
+Description=Relay CRM team server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=relay
+Group=relay
+WorkingDirectory=/opt/relay-crm
+ExecStart=/opt/relay-crm/.venv/bin/python run.py --service --data-dir /var/lib/relay-crm
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/relay-crm
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

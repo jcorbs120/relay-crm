@@ -1,11 +1,10 @@
 __pycache__/
 *.pyc
+.venv/
+.build-venv/
+data/
 build/
 dist/
-Output/
-.venv/
-venv/
+deploy/windows/nssm.exe
 *.db
-*.db-wal
-*.db-shm
-.pytest_cache/
+*.key

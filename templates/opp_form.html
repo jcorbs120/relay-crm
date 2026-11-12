@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}New opportunity{% endblock %}
+{% block content %}
+<div class="head"><h1>New opportunity</h1></div>
+<form method="post" class="card" style="max-width:900px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% include "_opp_fields.html" %}
+  <div style="display:flex;gap:8px"><button class="btn primary">Create</button><a class="btn" href="{{ url_for('pipeline') }}">Cancel</a></div>
+</form>
+{% endblock %}

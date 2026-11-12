@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}My profile &amp; mailbox{% endblock %}
+{% block content %}
+<div class="head"><h1>My profile &amp; mailbox</h1><span class="badge role-{{ me.role }}">{{ ROLES[me.role] }}</span></div>
+{% if me.must_change_password %}<div class="banner">Please choose a new password before you continue. Your administrator gave you a one-time password.</div>{% endif %}
+<div class="grid g2">
+<div>
+  <form method="post" class="card" action="{{ url_for('profile') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h3>Profile</h3>
+    <div class="frow">
+      <div class="f"><label>Name</label><input type="text" name="name" value="{{ me.name }}" required></div>
+      <div class="f"><label>Job title</label><input type="text" name="title" value="{{ me.title or '' }}"></div>
+    </div>
+    <div class="f"><label>Sign-in email</label><input type="email" value="{{ me.email }}" disabled><div class="hint">Only an administrator can change this.</div></div>
+    <div class="f"><label>Other addresses I send from (optional)</label><input type="text" name="aliases" value="{{ me.aliases or '' }}" placeholder="j.smith@agency.gov, jsmith@firm.com"><div class="hint">Relay treats these as you, so they never turn into contacts.</div></div>
+    <div class="f"><label>Email signature</label><textarea name="signature" rows="4">{{ me.signature or '' }}</textarea><div class="hint">Added to emails you send from Relay.</div></div>
+    <div class="frow">
+      <div class="f"><label>Default view of lists</label><select name="default_scope">
+        <option value="mine" {{ 'selected' if me.default_scope!='team' }}>My records</option>
+        <option value="team" {{ 'selected' if me.default_scope=='team' }}>Whole team</option></select></div>
+    </div>
+    <label class="check"><input type="checkbox" name="sync_enabled" value="1" {{ 'checked' if me.sync_enabled }}> <span>Sync my mailbox automatically</span></label>
+    <div class="mt"><button class="btn primary">Save profile</button></div>
+  </form>
+
+  <form method="post" class="card mt" id="password" action="{{ url_for('profile_password') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h3>{{ 'Set a password' if not me.password_hash else 'Change password' }}</h3>
+    {% if me.password_hash and not me.must_change_password %}
+    <div class="f"><label>Current password</label><input type="password" name="current" autocomplete="current-password" required></div>{% endif %}
+    <div class="frow">
+      <div class="f"><label>New password</label><input type="password" name="new" autocomplete="new-password" minlength="{{ S.password_min_length or 12 }}" required></div>
+      <div class="f"><label>Repeat new password</label><input type="password" name="new2" autocomplete="new-password" required></div>
+    </div>
+    <div class="hint">At least {{ S.password_min_length or 12 }} characters, mixing upper and lower case, numbers or symbols. A passphrase of 16+ characters also works.</div>
+    <div class="mt"><button class="btn primary">Save password</button></div>
+  </form>
+
+  <div class="card mt"><h3>Sessions</h3>
+    <p class="small muted">Signed in on a shared or lost computer? This signs you out everywhere except here.</p>
+    <form method="post" action="{{ url_for('profile_signout_all') }}" data-confirm="Sign out all your other sessions?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Sign out everywhere else</button></form>
+  </div>
+</div>
+
+<div>
+  <div class="card" id="mailbox"><h3>My Microsoft 365 mailbox</h3>
+  {% if S.mode != 'live' %}<p class="small muted">Relay is in demo mode. Mailbox sync starts once an administrator switches to live mode.</p>{% endif %}
+  {% if acct or me.ms_email %}
+    <div><span class="dot ok"></span><b>Connected</b> as {{ (acct.username if acct and acct.username) or me.ms_email }}</div>
+    <p class="small muted">Relay logs email between you and your contacts. Email between colleagues is ignored. Last sync: {{ me.last_sync_at|ago if me.last_sync_at else 'never' }}{% if me.last_sync_status %} &middot; {{ me.last_sync_status }}{% endif %}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if S.mode=='live' %}<form method="post" action="{{ url_for('profile_sync') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn primary sm">&#8635; Sync now</button></form>{% endif %}
+      <form method="post" action="{{ url_for('profile_ms_test') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm">Test connection</button></form>
+      <form method="post" action="{{ url_for('profile_ms_disconnect') }}" data-confirm="Disconnect your mailbox and delete its stored tokens?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm danger">Disconnect</button></form>
+    </div>
+  {% else %}
+    <div><span class="dot idle"></span><b>Not connected</b></div>
+    {% if not configured %}
+      <p class="small muted">An administrator needs to register Relay with Microsoft first (Admin &rarr; Settings &rarr; Microsoft 365).</p>
+    {% else %}
+      <p class="small muted">Connect your mailbox so Relay logs your client email, creates contacts and lets you send from the CRM. You approve access with Microsoft (MFA, PIV and CAC all work). Relay never sees your password.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% if web_ok %}<a class="btn primary" href="{{ url_for('auth_ms_start', connect=1) }}">Connect with Microsoft</a>{% endif %}
+        <button class="btn {{ '' if web_ok else 'primary' }}" id="connectBtn" type="button">{{ 'Use a sign-in code instead' if web_ok else 'Connect Microsoft 365' }}</button>
+      </div>
+      <div id="flowBox" style="display:none;margin-top:12px">
+        <ol class="steps">
+          <li>Open <a id="flowUrl" href="#" target="_blank" rel="noopener">microsoft.com/devicelogin</a></li>
+          <li>Enter code <span class="code" id="flowCode"></span> <button class="btn sm" id="copyCode" type="button">Copy</button></li>
+          <li>Sign in with your work account and accept the permissions.</li></ol>
+        <div class="small muted" id="flowStatus"><span class="spin"></span> Waiting for you to finish signing in…</div>
+      </div>
+    {% endif %}
+  {% endif %}
+  {% if is_reader %}<p class="small mt"><b>Note:</b> your connection is also used to read the shared capture mailbox <code>{{ S.capture_mailbox }}</code>. If you disconnect, shared capture stops until an admin picks someone else.</p>{% endif %}
+  {% if S.sync_capture=='1' %}<p class="small muted mt"><b>BCC / forward capture:</b> to log an email from any device, BCC or forward it to {% if S.capture_mailbox %}<code>{{ S.capture_mailbox }}</code>{% else %}your own Outlook folder <code>{{ S.capture_folder }}</code>{% endif %}.</p>{% endif %}
+  </div>
+
+  <div class="card mt flush"><h3 style="padding:14px 16px 0">My recent syncs</h3>
+  {% if my_syncs %}<table class="t"><tr><th>When</th><th class="right">Logged</th><th class="right">New contacts</th><th>Result</th></tr>
+  {% for r in my_syncs %}<tr><td class="nowrap">{{ r.started_at|dt }}</td><td class="right">{{ r.logged }}</td><td class="right">{{ r.new_contacts }}</td>
+    <td><span class="dot {{ 'ok' if r.status=='ok' else ('bad' if r.status=='error' else 'idle') }}"></span><span class="small">{{ r.message }}</span></td></tr>{% endfor %}
+  </table>{% else %}<div class="empty">No syncs yet.</div>{% endif %}
+  </div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+const cb=document.getElementById('connectBtn');
+if(cb){cb.addEventListener('click',async()=>{
+  cb.disabled=true;
+  let j;try{j=await (await fetch('{{ url_for("profile_ms_connect") }}',{method:'POST'})).json()}catch(e){j={status:'error',error:'Could not reach the Relay server'}}
+  if(j.status==='error'){toast(j.error||'Could not start sign-in','error');cb.disabled=false;return}
+  document.getElementById('flowBox').style.display='block';
+  document.getElementById('flowCode').textContent=j.user_code;
+  const u=document.getElementById('flowUrl');u.href=j.verification_uri;u.textContent=j.verification_uri;
+  document.getElementById('copyCode').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(j.user_code);toast('Code copied')};
+  window.open(j.verification_uri,'_blank','noopener');
+  const poll=setInterval(async()=>{const s=await (await fetch('{{ url_for("profile_ms_status") }}')).json();
+    const fs=document.getElementById('flowStatus');
+    if(s.status==='connected'){clearInterval(poll);fs.textContent='\u2713 Connected as '+s.email+'. Reloading…';setTimeout(()=>location.reload(),1200)}
+    else if(s.status==='error'){clearInterval(poll);fs.textContent='Sign-in failed: '+s.error;cb.disabled=false}},3000);
+});}
+</script>{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

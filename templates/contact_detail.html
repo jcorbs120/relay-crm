@@ -1,0 +1,134 @@
+{% extends "base.html" %}{% from "_macros.html" import timeline, task_row, owner_select, owner_chip with context %}
+{% block title %}{{ display_name(c) }}{% endblock %}
+{% block content %}
+<div class="head">
+  <div class="who"><div class="avatar lg">{{ c|initials }}</div>
+    <div><h1>{{ display_name(c) }} <span class="badge b-{{ c.status }}" style="vertical-align:middle">{{ c.status }}</span></h1>
+      <div class="muted">{{ c.title }}{% if c.title and c.org_name %} · {% endif %}{% if c.org_id %}<a href="{{ url_for('org_detail', oid=c.org_id) }}">{{ c.org_name }}</a>{% endif %}</div></div></div>
+  <div class="actions">
+    {% if can_edit %}
+    <a class="btn primary" href="{{ url_for('compose', contact=c.id) }}">&#9993; Email</a>
+    <button class="btn" data-modal="logModal" data-kind="call">&#9742; Log call</button>
+    <button class="btn" data-modal="logModal" data-kind="meeting">&#128197; Log meeting</button>
+    <button class="btn" data-modal="logModal" data-kind="note">&#9998; Note</button>
+    <button class="btn" data-modal="taskModal">&#10003; Task</button>
+    <a class="btn" href="{{ url_for('contact_edit', cid=c.id) }}">Edit</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if c.needs_review and can_edit %}
+<div class="banner">&#9733; Relay created this contact automatically when <b>{{ c.email }}</b> first emailed {{ uname(c.owner_id) if c.owner_id and c.owner_id != me.id else 'you' }}. Keep them?
+  <form method="post" action="{{ url_for('contact_approve', cid=c.id) }}" style="margin-left:auto"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm primary">&#10003; Keep</button></form>
+  <a class="btn sm" href="{{ url_for('contact_edit', cid=c.id) }}">Edit details</a>
+  {% if can_delete(c.owner_id) %}<form method="post" action="{{ url_for('contact_delete', cid=c.id) }}" data-confirm="Delete and ignore this address in future syncs?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="ignore" value="1"><button class="btn sm danger">Delete &amp; ignore sender</button></form>{% endif %}
+</div>
+{% endif %}
+
+<div class="grid g-side-l">
+  <div class="grid" style="align-content:start">
+    <div class="card">
+      <dl class="dl">
+        <dt>Owner</dt><dd>{{ owner_chip(c.owner_id) }}
+          {% if can_edit %}<details style="display:inline-block;margin-left:6px"><summary class="small" style="cursor:pointer;color:var(--brand2)">change</summary>
+          <form method="post" action="{{ url_for('contact_assign', cid=c.id) }}" style="display:flex;gap:6px;margin-top:6px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="owner_id" style="padding:4px 6px"><option value="none">— Unassigned —</option>{% for u in members %}<option value="{{ u.id }}" {{ 'selected' if u.id==c.owner_id }}>{{ u.name }}</option>{% endfor %}</select>
+            <button class="btn sm">Save</button></form></details>{% endif %}</dd>
+        <dt>Email</dt><dd>{% if c.email %}<a href="{{ url_for('compose', contact=c.id) }}">{{ c.email }}</a>{% endif %}</dd>
+        <dt>Phone</dt><dd>{{ c.phone }}</dd>
+        <dt>Mobile</dt><dd>{{ c.mobile }}</dd>
+        <dt>Org type</dt><dd>{{ c.org_type or '' }}</dd>
+        <dt>Source</dt><dd>{{ c.source }}</dd>
+        <dt>Tags</dt><dd>{% for t in (c.tags or '').split(',') if t %}<span class="tag">{{ t }}</span>{% endfor %}</dd>
+        <dt>Added</dt><dd>{{ c.created_at|d }}</dd>
+      </dl>
+    </div>
+    <div class="card">
+      <h3>Correspondence</h3>
+      <dl class="dl">
+        <dt>Last contacted</dt><dd><b>{{ c.last_contacted|ago }}</b> <span class="small muted">{{ c.last_contacted|d }}</span></dd>
+        <dt>Last sent</dt><dd>{{ c.last_outbound|ago }}</dd>
+        <dt>Last received</dt><dd>{{ c.last_inbound|ago }}</dd>
+        <dt>Emails</dt><dd>{{ c.emails_out }} sent · {{ c.emails_in }} received</dd>
+      </dl>
+      {% if c.last_outbound and (not c.last_inbound or c.last_inbound < c.last_outbound) %}<div class="hint" style="margin-top:8px">&#8987; Waiting on their reply</div>
+      {% elif c.last_inbound and (not c.last_outbound or c.last_outbound < c.last_inbound) %}<div class="hint" style="margin-top:8px;color:var(--warn)">&#8617; They're waiting on you</div>{% endif %}
+    </div>
+    {% if team_touch %}
+    <div class="card"><h3>Who on the team knows them</h3>
+      <table class="t">{% for t in team_touch %}<tr><td>{{ owner_chip(t.user_id) }}</td><td class="right small">{{ t.n }} touch{{ 'es' if t.n != 1 }}</td><td class="right small muted">{{ t.last|ago }}</td></tr>{% endfor %}</table>
+    </div>
+    {% endif %}
+    {% if c.notes %}<div class="card"><h3>Notes</h3><div style="white-space:pre-wrap">{{ c.notes }}</div></div>{% endif %}
+    <div class="card flush">
+      <div class="card-h"><h2>Opportunities</h2>{% if can_edit %}<a class="r btn sm" href="{{ url_for('opp_new', contact=c.id) }}">+ New</a>{% endif %}</div>
+      {% if opps %}<table class="t">{% for p in opps %}<tr><td><a href="{{ url_for('opp_detail', oid=p.id) }}">{{ p.name }}</a><div class="small muted">{{ p.stage }}{% if p.owner_id %} · {{ uname(p.owner_id) }}{% endif %}</div></td><td class="right"><b>{{ p.value|money }}</b></td></tr>{% endfor %}</table>
+      {% else %}<div class="empty small">None yet.</div>{% endif %}
+    </div>
+    {% if colleagues %}
+    <div class="card flush"><div class="card-h"><h2>Colleagues at {{ c.org_name }}</h2></div>
+      <table class="t">{% for p in colleagues %}<tr><td><a href="{{ url_for('contact_detail', cid=p.id) }}">{{ display_name(p) }}</a><div class="small muted">{{ p.title }}</div></td><td class="small muted right">{{ p.last_contacted|ago }}</td></tr>{% endfor %}</table></div>
+    {% endif %}
+  </div>
+
+  <div class="grid" style="align-content:start">
+    {% set open_tasks = tasks|selectattr('status','equalto','Open')|list %}
+    {% if open_tasks %}
+    <div class="card flush"><div class="card-h"><h2>Open tasks</h2></div>
+      <table class="t">{% for t in open_tasks %}{{ task_row(t, show_contact=False) }}{% endfor %}</table></div>
+    {% endif %}
+    <div class="card flush">
+      <div class="card-h"><h2>History</h2></div>
+      <div class="card-b">
+        <div class="tabs">
+          {% for k, l in [('', 'All'), ('email_out', 'Sent'), ('email_in', 'Received'), ('call', 'Calls'), ('meeting', 'Meetings'), ('note', 'Notes')] %}
+          <a href="{{ url_for('contact_detail', cid=c.id, kind=k or None) }}" class="{{ 'on' if kind==k }}">{{ l }}</a>{% endfor %}
+        </div>
+        {{ timeline(acts, opps=opps) }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="logModal"><div class="modal">
+  <h2>Log activity</h2>
+  <form method="post" action="{{ url_for('contact_log', cid=c.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="frow">
+      <div class="f"><label>Type</label><select name="kind" id="lk"><option value="call">Call</option><option value="meeting">Meeting</option><option value="note">Note</option></select></div>
+      <div class="f"><label>When</label><input type="datetime-local" name="occurred_at" id="lwhen"></div>
+      <div class="f cm"><label>Duration (min)</label><input type="number" name="duration_min" min="0"></div>
+    </div>
+    <div class="f"><label>Subject</label><input type="text" name="subject" placeholder="e.g. Pre-solicitation discussion"></div>
+    <div class="f"><label>Details</label><textarea name="body" rows="5"></textarea></div>
+    <div class="frow">
+      <div class="f cm"><label>Outcome</label><select name="outcome"><option value="">—</option><option>Positive</option><option>Neutral</option><option>Negative</option><option>Left voicemail</option><option>No answer</option></select></div>
+      <div class="f"><label>Opportunity</label><select name="opp_id"><option value="">—</option>{% for p in opps %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="frow">
+      <div class="f"><label>Schedule follow-up (optional)</label><input type="date" name="followup_date"></div>
+      <div class="f"><label>Follow-up title</label><input type="text" name="followup_title" placeholder="Follow up with {{ display_name(c) }}"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Save</button></div>
+  </form></div></div>
+
+<div class="modal-bg" id="taskModal"><div class="modal">
+  <h2>New task</h2>
+  <form method="post" action="{{ url_for('task_new') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="contact_id" value="{{ c.id }}">
+    <div class="f"><label>Task</label><input type="text" name="title" required placeholder="e.g. Send capability statement"></div>
+    <div class="frow">
+      <div class="f"><label>Due</label><input type="date" name="due_date"></div>
+      <div class="f"><label>Priority</label><select name="priority"><option>Normal</option><option>High</option><option>Low</option></select></div>
+      <div class="f"><label>Opportunity</label><select name="opp_id"><option value="">—</option>{% for p in opps %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+      {{ owner_select(members, me.id, name='assigned_to', label='Assign to') }}
+    </div>
+    <div class="f"><label>Notes</label><textarea name="notes" rows="3"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Add task</button></div>
+  </form></div></div>
+{% endblock %}
+{% block scripts %}<script>
+const lk=document.getElementById('lk'),w=document.getElementById('lwhen');
+function nowLocal(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)}
+w.value=nowLocal();
+lk.addEventListener('change',()=>document.querySelectorAll('.cm').forEach(e=>e.style.display=lk.value==='note'?'none':''));
+</script>{% endblock %}

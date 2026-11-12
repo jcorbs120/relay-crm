@@ -1,55 +1,52 @@
-name: Build Windows desktop app
-
+# Builds the Windows installer on every tag (v2.0.0 ...) or on demand.
+# Download it from the run's "Artifacts" section, or from the GitHub Release for tags.
+name: Build Windows installer
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
-
-permissions:
-  contents: write   # needed only to attach the installer to a GitHub Release on v* tags
+  push:
+    branches: [team-v2]
+    tags: ["v*"]
 
 jobs:
-  windows:
+  build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      SIGN_PFX_BASE64: ${{ secrets.SIGN_PFX_BASE64 }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-build.txt
-
-      - name: Install dependencies
-        run: python -m pip install -r requirements-build.txt
-
-      - name: Install PyInstaller with a freshly compiled bootloader (avoids antivirus false positives)
+          python-version: "3.11"
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Decode signing certificate (optional)
+        if: ${{ env.SIGN_PFX_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\sign.pfx", [Convert]::FromBase64String($env:SIGN_PFX_BASE64))
+          "SIGN_PFX=$env:RUNNER_TEMP\sign.pfx" >> $env:GITHUB_ENV
+      - name: Build
         shell: pwsh
         env:
-          PYINSTALLER_COMPILE_BOOTLOADER: "1"
-        run: python -m pip install --no-binary pyinstaller pyinstaller==6.11.1
-
-      - name: Run tests
-        run: python -m pytest -q
-
-      - name: Work out version
-        id: ver
+          SIGN_PFX_PASSWORD: ${{ secrets.SIGN_PFX_PASSWORD }}
+        run: powershell -ExecutionPolicy Bypass -File deploy\windows\build_windows.ps1
+      - name: Self-test the built server
         shell: pwsh
         run: |
-          $v = (Select-String -Path relay/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
-          if ($env:GITHUB_REF -like "refs/tags/v*") { $v = $env:GITHUB_REF_NAME.TrimStart("v") }
-          "version=$v" >> $env:GITHUB_OUTPUT
-
-      - name: Build app (PyInstaller)
-        run: pyinstaller --noconfirm --clean packaging/relay.spec
-
-      - name: Self-test the built app
-        shell: pwsh
-        run: |
-          $p = Start-Process -FilePath "dist\RelayCRM\RelayCRM.exe" -ArgumentList "--selftest" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Write-Error "Built app failed its self-test (exit $($p.ExitCode))"; exit 1 }
+          $data = Join-Path $env:RUNNER_TEMP "relay-selftest"
+          $p = Start-Process -FilePath "dist\RelayCRM\RelayCRM.exe" -ArgumentList "--local","--no-browser","--port","5099","--data-dir",$data -PassThru
+          $ok = $false
+          foreach ($i in 1..40) {
+            Start-Sleep -Seconds 1
+            try { $r = Invoke-WebRequest "http://127.0.0.1:5099/healthz" -UseBasicParsing -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}
+          }
+          if ($ok) { $r2 = Invoke-WebRequest "http://127.0.0.1:5099/" -UseBasicParsing -TimeoutSec 10; Write-Host "Home page HTTP $($r2.StatusCode)" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { Get-ChildItem $data -Recurse -Filter *.log | ForEach-Object { Get-Content $_.FullName -Tail 40 }; Write-Error "Built server did not start"; exit 1 }
           Write-Host "Self-test passed"
 
       - name: Microsoft Defender scan (report only)
@@ -57,39 +54,26 @@ jobs:
         continue-on-error: true
         run: |
           $mp = Get-ChildItem "$env:ProgramData\Microsoft\Windows Defender\Platform\*\MpCmdRun.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
-          if (-not $mp) { $mp = Get-Item "$env:ProgramFiles\Windows Defender\MpCmdRun.exe" -ErrorAction SilentlyContinue }
-          if (-not $mp) { Write-Host "Defender not available on this runner"; exit 0 }
+          if (-not $mp) { Write-Host "Defender not available"; exit 0 }
           & $mp.FullName -SignatureUpdate | Out-Host
-          & $mp.FullName -Scan -ScanType 3 -File "$PWD\dist\RelayCRM" -DisableRemediation | Out-Host
+          & $mp.FullName -Scan -ScanType 3 -File "$PWD\dist" -DisableRemediation | Out-Host
           Write-Host "DEFENDER_EXIT=$LASTEXITCODE  (0 = clean, 2 = threat found)"
 
-      - name: Build installer (Inno Setup)
-        shell: pwsh
-        run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Portable zip (no install needed)
-        shell: pwsh
-        run: Compress-Archive -Path dist\RelayCRM\* -DestinationPath "Output\RelayCRM-Portable-${{ steps.ver.outputs.version }}.zip"
-
       - uses: actions/upload-artifact@v4
         with:
-          name: RelayCRM-Setup-${{ steps.ver.outputs.version }}
-          path: Output/RelayCRM-Setup-*.exe
-          if-no-files-found: error
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: RelayCRM-Portable-${{ steps.ver.outputs.version }}
-          path: Output/RelayCRM-Portable-*.zip
-
-      - name: Attach to GitHub Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+          name: RelayCRM-Setup
+          path: dist/RelayCRM-Setup-*.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Output/RelayCRM-Setup-*.exe
-            Output/RelayCRM-Portable-*.zip
+          files: dist/RelayCRM-Setup-*.exe
+
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt pytest && pytest -q tests

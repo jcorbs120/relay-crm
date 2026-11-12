@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% from "_macros.html" import timeline, task_row with context %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block content %}
+<div class="head"><div><h1>{{ p.name }}</h1>
+  <div class="muted">{% if p.org_id %}<a href="{{ url_for('org_detail', oid=p.org_id) }}">{{ p.org_name }}</a>{% endif %}
+    {% if p.contact_id %} · <a href="{{ url_for('contact_detail', cid=p.contact_id) }}">{{ display_name(p) }}</a>{% endif %}
+    · <b>{{ p.value|money }}</b> · {{ p.probability }}%
+    · Capture lead: <b>{{ uname(p.owner_id) or 'unassigned' }}</b></div></div>
+  <div class="actions">
+    {% if p.contact_id and can_edit %}<a class="btn primary" href="{{ url_for('compose', contact=p.contact_id, opp=p.id) }}">&#9993; Email contact</a>{% endif %}
+    {% if can_delete(p.owner_id) %}<form method="post" action="{{ url_for('opp_delete', oid=p.id) }}" data-confirm="Delete this opportunity?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">Delete</button></form>{% endif %}</div></div>
+
+<div class="stagebar">
+  {% set ns = namespace(passed=true) %}
+  {% for s in stages %}
+    {% set cls = 'cur' if s==p.stage else ('done' if ns.passed and p.stage not in won_lost[1:] else '') %}
+    {% if s==p.stage %}{% set ns.passed=false %}{% endif %}
+    <form method="post" action="{{ url_for('opp_stage', oid=p.id) }}" style="display:contents"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="stage" value="{{ s }}">
+      <span {% if can_edit %}onclick="this.parentNode.submit()"{% endif %} class="{{ cls }} {{ 'won' if s==won_lost[0] }} {{ 'lost' if s==won_lost[1] }}" title="Move to {{ s }}">{{ s }}</span></form>
+  {% endfor %}
+</div>
+<p class="small muted">Click a stage to move. Stage changes are recorded in history{% if p.stage_changed_at %} · in this stage since {{ p.stage_changed_at|d }}{% endif %}.</p>
+
+<div class="grid g-side">
+  <div class="grid" style="align-content:start">
+    <div class="card flush"><div class="card-h"><h2>Linked correspondence &amp; activity ({{ acts|length }})</h2></div>
+      <div class="card-b">{{ timeline(acts, show_contact=True) }}
+      {% if not acts %}<p class="small muted">Emails with the primary contact (or anyone at the organisation, when this is their only open opportunity) are linked here automatically. You can also link any email from a contact's timeline.</p>{% endif %}</div></div>
+    {% if tasks %}<div class="card flush"><div class="card-h"><h2>Tasks</h2></div><table class="t">{% for t in tasks %}{{ task_row(t, show_contact=False) }}{% endfor %}</table></div>{% endif %}
+  </div>
+  <form method="post" class="card" style="align-self:start"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2>Details</h2>
+    {% include "_opp_fields.html" %}
+    {% if can_edit %}<button class="btn primary">Save</button>{% endif %}
+  </form>
+</div>
+{% endblock %}

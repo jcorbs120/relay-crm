@@ -1,0 +1,56 @@
+{% extends "base.html" %}{% from "_macros.html" import scope_picker, owner_chip with context %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<div class="head"><h1>Contacts</h1><span class="muted">{{ rows|length }} shown</span>
+  <div class="actions">
+    {{ scope_picker(sel, 'contacts', {'q': q} if q else {}) }}
+    {% if can_export %}<a class="btn" href="{{ url_for('contacts_export', owner=sel) }}">&#8681; Export CSV</a>{% endif %}
+    {% if can_import %}<a class="btn" href="{{ url_for('import_view') }}">&#8679; Import</a>{% endif %}
+    {% if can_edit %}<a class="btn primary" href="{{ url_for('contact_new') }}">+ New contact</a>{% endif %}</div></div>
+
+<form class="filters" method="get">
+  <input type="hidden" name="owner" value="{{ sel }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Name, email, agency, title, tag">
+  <select name="status" onchange="this.form.submit()"><option value="">All statuses</option>{% for s in statuses %}<option {{ 'selected' if s==status }}>{{ s }}</option>{% endfor %}</select>
+  <select name="org" onchange="this.form.submit()"><option value="">All organisations</option>{% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if o.id|string==org }}>{{ o.name }}</option>{% endfor %}</select>
+  <select name="sort" onchange="this.form.submit()">
+    <option value="last" {{ 'selected' if sort=='last' }}>Sort: last contacted</option><option value="name" {{ 'selected' if sort=='name' }}>Sort: name</option>
+    <option value="created" {{ 'selected' if sort=='created' }}>Sort: newest</option><option value="org" {{ 'selected' if sort=='org' }}>Sort: organisation</option></select>
+  <label class="check" style="margin:0"><input type="checkbox" name="review" value="1" {{ 'checked' if review }} onchange="this.form.submit()"> Needs review only</label>
+  <label class="check" style="margin:0"><input type="checkbox" name="source" value="email" {{ 'checked' if source }} onchange="this.form.submit()"> Auto-created from email</label>
+  <button class="btn">Filter</button>{% if q or status or org or review or source %}<a href="{{ url_for('contacts', owner=sel) }}" class="small">Clear</a>{% endif %}
+</form>
+
+<form method="post" action="{{ url_for('contacts_bulk') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="card flush">
+  {% if can_edit %}
+  <div class="card-h" style="gap:6px;flex-wrap:wrap">
+    <span class="small muted">With selected:</span>
+    <button class="btn sm" name="action" value="approve">&#10003; Confirm</button>
+    <select name="action" style="width:auto;padding:4px 8px" onchange="if(this.value)this.form.submit()"><option value="">Set status…</option>{% for s in statuses %}<option value="status:{{ s }}">{{ s }}</option>{% endfor %}</select>
+    <select name="action" style="width:auto;padding:4px 8px" onchange="if(this.value)this.form.submit()"><option value="">Assign owner…</option>{% for u in team %}<option value="owner:{{ u.id }}">{{ u.name }}</option>{% endfor %}<option value="owner:none">Unassigned</option></select>
+    {% if is_admin or S.user_can_delete_own=='1' %}<button class="btn sm danger" name="action" value="delete" onclick="return confirm('Delete selected contacts and their history?{{ '' if is_admin else ' (Only contacts you own will be deleted.)' }}')">Delete</button>{% endif %}
+  </div>
+  {% endif %}
+  {% if rows %}
+  <table class="t">
+    <tr><th style="width:28px">{% if can_edit %}<input type="checkbox" id="selAll">{% endif %}</th><th>Name</th><th>Organisation</th><th>Status</th><th>Owner</th><th>Last contacted</th><th class="right">Sent / Recv</th><th>Source</th></tr>
+    {% for c in rows %}
+    <tr>
+      <td>{% if can_edit %}<input type="checkbox" name="ids" value="{{ c.id }}">{% endif %}</td>
+      <td><div class="who"><div class="avatar">{{ c|initials }}</div><div><a class="n" href="{{ url_for('contact_detail', cid=c.id) }}">{{ display_name(c) }}</a>
+        {% if c.needs_review %}<span class="badge b-new">new from email</span>{% endif %}
+        <div class="e">{{ c.title }}{% if c.title and c.email %} · {% endif %}{{ c.email or '' }}</div></div></div></td>
+      <td>{% if c.org_id %}<a href="{{ url_for('org_detail', oid=c.org_id) }}">{{ c.org_name }}</a>{% endif %}</td>
+      <td><span class="badge b-{{ c.status }}">{{ c.status }}</span></td>
+      <td>{{ owner_chip(c.owner_id) }}</td>
+      <td class="nowrap" title="{{ c.last_contacted or '' }}">{{ c.last_contacted|ago }}</td>
+      <td class="right">{{ c.emails_out }} / {{ c.emails_in }}</td>
+      <td class="small muted">{{ c.source }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No contacts match.{% if sel=='mine' %} You're viewing <b>your</b> contacts - try <a href="{{ url_for('contacts', owner='all', q=q) }}">the whole team</a>.{% endif %} Import a list, or sync email and Relay will build the list for you.</div>{% endif %}
+</div>
+</form>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ u.name if u else 'Add user' }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ u.name if u else 'Add a user' }}</h1>{% if u %}<span class="badge role-{{ u.role }}">{{ ROLES[u.role] }}</span>{% endif %}
+  <div class="actions"><a class="btn" href="{{ url_for('admin_users') }}">&larr; All users</a></div></div>
+<div class="grid {{ 'g2' if u else '' }}">
+<div>
+<form method="post" class="card" style="max-width:760px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="frow">
+    <div class="f"><label>Full name</label><input type="text" name="name" value="{{ form.name or '' }}" required autofocus></div>
+    <div class="f"><label>Work email</label><input type="email" name="email" value="{{ form.email or '' }}" required><div class="hint">They sign in with this. It should match their Microsoft 365 address.</div></div>
+  </div>
+  <div class="frow">
+    <div class="f"><label>Role</label><select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if form.role==k }}>{{ v }}</option>{% endfor %}</select></div>
+    <div class="f"><label>Job title</label><input type="text" name="title" value="{{ form.title or '' }}"></div>
+  </div>
+  <div class="f"><label>Other email addresses (optional)</label><input type="text" name="aliases" value="{{ form.aliases or '' }}" placeholder="alias@firm.com"><div class="hint">Addresses this person also sends from. Relay treats them as a colleague, never as a contact.</div></div>
+  {% if u %}
+    <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if form.active }} {{ 'disabled' if u.id==me.id }}> <span>Active (can sign in)</span></label>
+    {% if u.id==me.id %}<input type="hidden" name="active" value="1">{% endif %}
+    <label class="check"><input type="checkbox" name="sync_enabled" value="1" {{ 'checked' if form.sync_enabled }}> <span>Sync this person's mailbox when connected</span></label>
+  {% else %}
+    <div class="f"><label>How will they sign in?</label>
+      <label class="check"><input type="radio" name="signin" value="temp" checked> <span><b>One-time password.</b> Relay generates one and shows it once; they change it at first sign-in.</span></label>
+      <label class="check"><input type="radio" name="signin" value="microsoft" {{ 'disabled' if not S.ms_client_id }}> <span><b>Sign in with Microsoft only.</b> No Relay password. {% if not S.ms_client_id %}<i class="muted">(Set up Microsoft 365 in Settings first.)</i>{% endif %}</span></label>
+    </div>
+  {% endif %}
+  <div class="mt" style="display:flex;gap:8px"><button class="btn primary">{{ 'Save changes' if u else 'Create user' }}</button><a class="btn" href="{{ url_for('admin_users') }}">Cancel</a></div>
+</form>
+</div>
+
+{% if u %}
+<div>
+  <div class="card"><h3>At a glance</h3>
+    <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+      <div class="kpi"><div class="small muted">Contacts</div><b>{{ stats.contacts }}</b></div>
+      <div class="kpi"><div class="small muted">Orgs</div><b>{{ stats.orgs }}</b></div>
+      <div class="kpi"><div class="small muted">Opps</div><b>{{ stats.opps }}</b></div>
+      <div class="kpi"><div class="small muted">Open tasks</div><b>{{ stats.tasks }}</b></div>
+      <div class="kpi"><div class="small muted">Activities</div><b>{{ stats.acts }}</b></div>
+    </div>
+    <p class="small muted mt">Last sign-in {{ u.last_login|ago if u.last_login else 'never' }} &middot; added {{ u.created_at|d }} &middot; mailbox: {{ u.ms_email or ('connected' if u.ms_token_cache else 'not connected') }}{% if u.locked_until %} &middot; <b>locked until {{ u.locked_until|dt }}</b>{% endif %}</p>
+  </div>
+
+  <div class="card mt"><h3>Account actions</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="{{ url_for('admin_user_reset', uid=u.id) }}" data-confirm="Generate a new one-time password for {{ u.name }}? Their current password stops working."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm">Reset password</button></form>
+      {% if u.locked_until or u.failed_logins %}<form method="post" action="{{ url_for('admin_user_unlock', uid=u.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm">Unlock</button></form>{% endif %}
+      <form method="post" action="{{ url_for('admin_user_signout', uid=u.id) }}" data-confirm="Sign {{ u.name }} out of every session?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm">Sign out everywhere</button></form>
+      {% if u.ms_token_cache %}<form method="post" action="{{ url_for('admin_user_disconnect', uid=u.id) }}" data-confirm="Disconnect {{ u.name }}'s mailbox and delete its stored tokens?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn sm">Disconnect mailbox</button></form>{% endif %}
+    </div>
+  </div>
+
+  {% if u.id != me.id %}
+  <form method="post" class="card mt" action="{{ url_for('admin_user_delete', uid=u.id) }}" data-confirm="Permanently delete {{ u.name }}? Their records are handed to the person you picked. This can't be undone. Deactivating is usually better."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h3>Delete user</h3>
+    <p class="small muted">Usually you should <b>deactivate</b> instead, which keeps their name on history. If you delete, choose who takes over their contacts, organisations, opportunities and open tasks.</p>
+    <div class="frow"><div class="f"><label>Hand records to</label><select name="reassign_to"><option value="">Nobody (leave unowned)</option>
+      {% for o in others %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}</select></div></div>
+    <button class="btn danger">Delete user</button>
+  </form>
+  {% endif %}
+
+  <div class="card mt flush"><h3 style="padding:14px 16px 0">Recent activity (audit log)</h3>
+  {% if recent %}<table class="t">{% for r in recent %}<tr><td class="small nowrap">{{ r.ts|dt }}</td><td class="small"><b>{{ r.action }}</b> {{ r.entity }}{% if r.entity_id %} #{{ r.entity_id }}{% endif %}</td><td class="small muted">{{ r.detail|truncate(70) }}</td></tr>{% endfor %}</table>
+  <div style="padding:8px 16px"><a class="small" href="{{ url_for('audit_view', user=u.id) }}">Full history &rarr;</a></div>
+  {% else %}<div class="empty">Nothing yet.</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+</div>
+{% endblock %}
+
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

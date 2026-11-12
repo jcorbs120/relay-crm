@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Import contacts{% endblock %}
+{% block content %}
+<div class="head"><h1>Import contacts</h1></div>
+{% if step=='upload' %}
+<div class="grid g2">
+  <form method="post" enctype="multipart/form-data" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2>1. Upload a CSV or Excel file</h2>
+    <p class="muted">Works with exports from ACT!, Outlook, LinkedIn, Salesforce, HubSpot, Google Contacts, or any spreadsheet with a header row. Columns are matched automatically and you can adjust them on the next screen.</p>
+    <div class="f"><input type="file" name="file" accept=".csv,.txt,.xlsx,.xlsm" required></div>
+    <button class="btn primary">Upload &amp; map columns &rarr;</button>
+    <p class="small muted mt">Need a starting point? <a href="{{ url_for('import_sample') }}">Download the template CSV</a>.</p>
+  </form>
+  <div class="card">
+    <h3>How duplicates are handled</h3>
+    <p class="small">Contacts are matched on <b>email address</b>. Colleagues' addresses are skipped, and existing contacts keep their current owner. If the email already exists you can choose to update that record (fill blank fields and merge tags) or skip it. Organisations are matched by name, then by email domain, and created if missing.</p>
+    <h3 class="mt">Moving from ACT!?</h3>
+    <p class="small">In ACT! go to <i>File &rarr; Export &rarr; Text-delimited</i> or <i>Excel</i>, pick Contact records, and include the fields you want. The "Company", "ID/Status", "Categories" and "Business Phone" columns map automatically.</p>
+  </div>
+</div>
+{% elif step=='map' %}
+<form method="post" action="{{ url_for('import_run') }}" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <h2>2. Map columns: <span class="muted">{{ filename }} · {{ total }} rows</span></h2>
+  <div class="frow">
+  {% for key, label in fields.items() %}
+    <div class="f"><label>{{ label }}</label><select name="map_{{ key }}"><option value="">— skip —</option>
+      {% for h in headers %}<option value="{{ h }}" {{ 'selected' if mapping.get(key)==h }}>{{ h }}</option>{% endfor %}</select></div>
+  {% endfor %}
+  </div>
+  <div class="frow">
+    <div class="f"><label>Default status</label><select name="default_status">{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select></div>
+    <div class="f"><label>Owner of new contacts</label><select name="owner_id"><option value="none">— Unassigned —</option>{% for u in members %}<option value="{{ u.id }}" {{ 'selected' if u.id==me.id }}>{{ u.name }}</option>{% endfor %}</select></div>
+    <div class="f"><label>Tag all imported contacts</label><input type="text" name="tag" placeholder="e.g. act-import, industry-day-2025"></div>
+    <div class="f"><label class="check" style="margin-top:22px"><input type="checkbox" name="update" value="1" checked> Update existing contacts with the same email</label></div>
+  </div>
+  <h3 class="mt">Preview (first {{ sample|length }} rows)</h3>
+  <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px"><table class="t"><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr>
+    {% for r in sample %}<tr>{% for h in headers %}<td class="small">{{ r.get(h, '') }}</td>{% endfor %}</tr>{% endfor %}</table></div>
+  <div class="mt" style="display:flex;gap:8px"><button class="btn primary">Import {{ total }} rows</button><a class="btn" href="{{ url_for('import_view') }}">Start over</a></div>
+</form>
+{% else %}
+<div class="card" style="max-width:640px">
+  <h2>Import complete</h2>
+  <div class="kpis"><div class="kpi"><div class="l">Created</div><div class="v">{{ res.created }}</div></div>
+    <div class="kpi"><div class="l">Updated</div><div class="v">{{ res.updated }}</div></div>
+    <div class="kpi"><div class="l">Skipped</div><div class="v">{{ res.skipped }}</div></div></div>
+  {% if res.errors %}<h3>Issues</h3><ul class="small">{% for e in res.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  <p>From now on, any email to or from these people syncs onto their record automatically.</p>
+  <a class="btn primary" href="{{ url_for('contacts', sort='created') }}">View contacts</a> <a class="btn" href="{{ url_for('import_view') }}">Import another</a>
+</div>
+{% endif %}
+{% endblock %}

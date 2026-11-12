@@ -1,0 +1,16 @@
+# docker compose up -d   ->  http://<server>:5055
+# Put it behind your HTTPS reverse proxy and uncomment RELAY_BEHIND_PROXY.
+services:
+  relay:
+    build: .
+    image: relay-crm:2
+    restart: unless-stopped
+    ports:
+      - "5055:5055"
+    volumes:
+      - relay-data:/data
+    environment:
+      TZ: America/New_York
+      # RELAY_BEHIND_PROXY: "1"
+volumes:
+  relay-data:

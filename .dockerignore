@@ -1,0 +1,8 @@
+.venv
+.build-venv
+data
+dist
+build
+tests
+.git
+**/__pycache__

@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% from "_macros.html" import owner_select with context %}
+{% block title %}{{ 'Edit contact' if c else 'New contact' }}{% endblock %}
+{% block content %}
+<div class="head"><h1>{{ 'Edit ' ~ display_name(c) if c else 'New contact' }}</h1></div>
+<form method="post" class="card" style="max-width:860px"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="frow">
+    <div class="f"><label>First name</label><input type="text" name="first_name" value="{{ c.first_name if c }}"></div>
+    <div class="f"><label>Last name</label><input type="text" name="last_name" value="{{ c.last_name if c }}"></div>
+  </div>
+  <div class="frow">
+    <div class="f"><label>Email</label><input type="email" name="email" value="{{ c.email or '' if c }}"><div class="hint">Used to match email correspondence automatically.</div></div>
+    <div class="f"><label>Job title</label><input type="text" name="title" value="{{ c.title if c }}"></div>
+  </div>
+  <div class="frow">
+    <div class="f"><label>Phone</label><input type="text" name="phone" value="{{ c.phone if c }}"></div>
+    <div class="f"><label>Mobile</label><input type="text" name="mobile" value="{{ c.mobile if c }}"></div>
+    <div class="f"><label>Status</label><select name="status">{% for s in statuses %}<option {{ 'selected' if c and c.status==s }}>{{ s }}</option>{% endfor %}</select></div>
+    {{ owner_select(members, c.owner_id if c else me.id, label='Relationship owner') }}
+  </div>
+  <div class="frow">
+    <div class="f"><label>Organisation</label><select name="org_id"><option value="">— auto from email domain —</option>
+      {% for o in orgs %}<option value="{{ o.id }}" {{ 'selected' if (c and c.org_id==o.id) or preset_org==o.id }}>{{ o.name }}</option>{% endfor %}</select></div>
+    <div class="f"><label>…or create new organisation</label><input type="text" name="new_org" placeholder="Agency / company name"></div>
+    <div class="f"><label>New org type</label><select name="new_org_type"><option value=""></option>{% for t in org_types %}<option>{{ t }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="f"><label>Tags (comma separated)</label><input type="text" name="tags" value="{{ c.tags if c }}" placeholder="decision-maker, cyber, contracting"></div>
+  <div class="f"><label>Notes</label><textarea name="notes" rows="5">{{ c.notes if c }}</textarea></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn primary">Save</button>
+    <a class="btn" href="{{ url_for('contact_detail', cid=c.id) if c else url_for('contacts') }}">Cancel</a>
+  </div>
+</form>
+{% if c and can_delete(c.owner_id) %}
+<form method="post" action="{{ url_for('contact_delete', cid=c.id) }}" data-confirm="Delete this contact and their history?" class="mt" style="display:flex;gap:8px;align-items:center"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="btn danger">Delete contact</button>
+  <label class="check" style="margin:0"><input type="checkbox" name="ignore" value="1"> Also ignore this address in future email syncs</label>
+</form>
+{% endif %}
+{% endblock %}

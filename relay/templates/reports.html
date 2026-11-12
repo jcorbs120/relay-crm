@@ -1,8 +1,0 @@
-{% extends 'base.html' %}
-{% block title %}Reports{% endblock %}
-{% block body %}
-<div class="head"><h1>Reports</h1></div>
-<div class="grid g3">
-{% for k, t, d in catalog %}<a class="card" href="/reports/{{ k }}" style="color:inherit"><h2 style="color:var(--brand)">{{ t }}</h2><p class="muted" style="margin:0">{{ d }}</p></a>{% endfor %}
-</div>
-{% endblock %}

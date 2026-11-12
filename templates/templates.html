@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Email templates{% endblock %}
+{% block content %}
+<div class="head"><h1>Email templates</h1></div>
+<p class="muted">Shared by the whole team. Placeholders: <code>{first_name}</code> <code>{last_name}</code> <code>{organization}</code> <code>{my_name}</code> <code>{my_title}</code> <code>{firm_name}</code> - "my" fills in with whoever is sending.</p>
+<div class="grid g2">
+{% for t in rows %}
+<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="id" value="{{ t.id }}">
+  <div class="f"><label>Name</label><input type="text" name="name" value="{{ t.name }}"></div>
+  <div class="f"><label>Subject</label><input type="text" name="subject" value="{{ t.subject }}"></div>
+  <div class="f"><label>Body</label><textarea name="body" rows="8">{{ t.body }}</textarea></div>
+  {% if can_edit %}<div style="display:flex;gap:8px"><button class="btn primary sm">Save</button>{% if is_admin %}<button class="btn danger sm" name="delete" value="1" onclick="return confirm('Delete template?')">Delete</button>{% endif %}</div>{% endif %}
+</form>
+{% endfor %}
+{% if can_edit %}<form method="post" class="card" style="border-style:dashed"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <h3>New template</h3>
+  <div class="f"><label>Name</label><input type="text" name="name" required></div>
+  <div class="f"><label>Subject</label><input type="text" name="subject"></div>
+  <div class="f"><label>Body</label><textarea name="body" rows="8"></textarea></div>
+  <button class="btn primary sm">Add template</button>
+</form>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ r.title if r else 'Reports' }}{% endblock %}
+{% block content %}
+<div class="head"><h1>Reports</h1></div>
+<div class="grid" style="grid-template-columns:250px minmax(0,1fr)">
+  <div class="card flush" style="align-self:start">
+    {% for k, (t, d) in reports.items() %}
+    <a href="{{ url_for('report_view', key=k, period=period, type=org_type, user=usel or None) }}" style="display:block;padding:11px 16px;border-bottom:1px solid var(--line2);{{ 'background:var(--brand-soft);' if r and r.key==k }}color:var(--ink)">
+      <b>{{ t }}</b><div class="small muted">{{ d }}</div></a>
+    {% endfor %}
+  </div>
+  <div>
+  {% if not r %}
+    <div class="card"><h2>Choose a report</h2><p class="muted">Every report can be filtered by period, organisation type and <b>team member</b>, printed, or exported to CSV for Excel or Power BI. Start with <a href="{{ url_for('report_view', key='team') }}">Team activity by person</a> to see who is working which relationships.</p></div>
+  {% else %}
+    <div class="card mb">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div><h2 style="margin:0">{{ r.title }}</h2><div class="small muted">{{ r.description }}</div></div>
+        <form class="filters" method="get" style="margin:0 0 0 auto">
+          {% if r.key not in ('pipeline','forecast','stale') %}<select name="period" onchange="this.form.submit()">{% for k, l in periods.items() %}<option value="{{ k }}" {{ 'selected' if k==period }}>{{ l }}</option>{% endfor %}</select>{% endif %}
+          {% if r.key=='stale' %}<input type="number" name="days" value="{{ request.args.get('days', S.stale_days) }}" style="min-width:90px;width:90px" title="Days silent"> <button class="btn sm">days</button>{% endif %}
+          <select name="user" onchange="this.form.submit()" title="Team member"><option value="">{{ 'Everyone' }}</option><option value="me" {{ 'selected' if usel=='me' }}>Just me</option>{% for u in members %}<option value="{{ u.id }}" {{ 'selected' if usel==u.id|string }}>{{ u.name }}</option>{% endfor %}</select>
+          {% if r.key!='tasks' %}<select name="type" onchange="this.form.submit()"><option value="">All org types</option>{% for x in org_types %}<option {{ 'selected' if x==org_type }}>{{ x }}</option>{% endfor %}</select>{% endif %}
+        </form>
+        {% if can_export %}<a class="btn sm" href="{{ url_for('report_csv', key=r.key, period=period, type=org_type, days=request.args.get('days'), user=usel or None) }}">&#8681; CSV</a>{% endif %}
+        <button class="btn sm" onclick="window.print()">&#128424; Print</button>
+      </div>
+    </div>
+    {% if r.kpis %}<div class="kpis">{% for l, v in r.kpis %}<div class="kpi"><div class="l">{{ l }}</div><div class="v">{{ v }}</div></div>{% endfor %}</div>{% endif %}
+    {% if r.chart and r.rows %}<div class="card mb"><div class="chart-wrap"><canvas id="chart"></canvas></div></div>{% endif %}
+    <div class="card flush">
+      {% if r.rows %}<table class="t"><tr>{% for c in r.columns %}<th>{{ c }}</th>{% endfor %}</tr>
+      {% for row in r.rows %}{% set li = r.links[loop.index0] if r.links else None %}<tr>{% for v in row %}<td>
+        {% if loop.first and li %}<a href="{{ url_for('contact_detail', cid=li[1]) if li[0]=='contact' else (url_for('org_detail', oid=li[1]) if li[0]=='org' else url_for('report_view', key='activity', user=li[1], period=period)) }}">{{ v }}</a>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+      </table>{% else %}<div class="empty">No data for this period.</div>{% endif %}
+    </div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if r and r.chart and r.rows %}
+<script src="{{ url_for('static', filename='chart.umd.min.js') }}"></script>
+<script>
+const cfg = {{ r.chart|tojson }};
+const palette = ["#1f4e8c","#0f9d8a","#e0693a","#6b3fa0","#c0362c","#f5b942","#5a8fd6","#7aa874"];
+const ds = cfg.series.map((s,i)=>({label:s.name,data:s.data,backgroundColor:cfg.type==="doughnut"?palette:palette[i%palette.length],borderRadius:cfg.type==="bar"?4:0}));
+new Chart(document.getElementById("chart"),{type:cfg.type,data:{labels:cfg.labels,datasets:ds},
+  options:{maintainAspectRatio:false,plugins:{legend:{display:cfg.series.length>1||cfg.type==="doughnut",position:"bottom"}},
+  scales:cfg.type==="doughnut"?{}:{x:{stacked:!!cfg.stacked,grid:{display:false}},y:{stacked:!!cfg.stacked,beginAtZero:true,
+  ticks:{callback:v=>cfg.money?"$"+(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":v):v}}}}});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "_auth_base.html" %}
+{% block title %}Set up Relay{% endblock %}
+{% block cardclass %}wide{% endblock %}
+{% block body %}
+<h1>{{ 'Upgrade to the team edition' if upgrading else 'Welcome - let\'s set up Relay' }}</h1>
+<p class="muted" style="margin:0 0 16px">{% if upgrading %}Relay found your existing single-user data. Create the first <b>administrator</b> account and every contact, opportunity, task and email you already have will be assigned to you. You can add the rest of the team afterwards.{% else %}Create the first <b>administrator</b> account. You'll add your team and connect Microsoft 365 next. Relay starts in <b>demo mode</b> with sample data so you can try it safely.{% endif %}</p>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="frow">
+    <div class="f"><label>Your name</label><input type="text" name="name" value="{{ form.name }}" required autofocus></div>
+    <div class="f"><label>Work email</label><input type="email" name="email" value="{{ form.email }}" required><div class="hint">Use your Microsoft 365 address. It's how Relay recognises your email.</div></div>
+  </div>
+  <div class="f"><label>Firm / team name <span class="muted">(optional)</span></label><input type="text" name="firm_name" value="{{ form.firm_name }}" placeholder="e.g. Meridian Public Sector Advisory"></div>
+  <div class="frow">
+    <div class="f"><label>Password</label><input type="password" name="password" autocomplete="new-password" required></div>
+    <div class="f"><label>Confirm password</label><input type="password" name="password2" autocomplete="new-password" required></div>
+  </div>
+  <div class="hint" style="margin:-4px 0 14px">At least {{ S.password_min_length or 12 }} characters, mixing upper & lower case, numbers or symbols, or a passphrase of 16+ characters.</div>
+  <button class="btn primary" style="width:100%;justify-content:center;padding:10px">Create administrator & continue</button>
+</form>
+{% endblock %}

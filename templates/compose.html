@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Compose{% endblock %}
+{% block content %}
+<div class="head"><h1>Compose email</h1><span class="muted small">Sends from {{ me.ms_email or me.email }} through Microsoft 365 and logs to the CRM automatically</span></div>
+{% if not mailbox_ready %}<div class="flash error">Your mailbox isn't connected yet, so Relay can't send from your account. <a href="{{ url_for('profile') }}#mailbox">Connect it in My profile</a> - it takes about a minute.</div>{% endif %}
+<div class="grid g-side">
+<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="f"><label>To</label><input type="text" name="to" id="toIn" list="clist" value="{{ c.email if c and c.email else '' }}" placeholder="name@agency.gov; another@agency.gov" required>
+    <datalist id="clist">{% for x in contacts %}<option value="{{ x.email }}">{{ display_name(x) }}</option>{% endfor %}</datalist>
+    <div class="hint">Separate multiple addresses with ; or , - new addresses become contacts automatically.</div></div>
+  <div class="frow"><div class="f"><label>Cc</label><input type="text" name="cc" list="clist"></div><div class="f"><label>Bcc</label><input type="text" name="bcc"></div></div>
+  <div class="f"><label>Subject</label><input type="text" name="subject" value="{{ subject }}" required></div>
+  <div class="f"><label>Message</label><textarea name="body" rows="14">{{ body }}</textarea></div>
+  <div class="frow">
+    <div class="f"><label>Link to opportunity</label><select name="opp_id"><option value="">— auto —</option>{% for o in opps %}<option value="{{ o.id }}" {{ 'selected' if o.id==opp_id }}>{{ o.name }}</option>{% endfor %}</select></div>
+    <div class="f"><label class="check" style="margin-top:20px"><input type="checkbox" name="followup" value="1" checked> Remind me if no reply by</label><input type="date" name="followup_date" value="{{ followup_default }}"></div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center"><button class="btn primary" {{ 'disabled' if not mailbox_ready }}>&#9993; Send &amp; log</button>
+    {% if S.mode!='live' %}<span class="small muted">Demo mode: the email is logged but not actually sent.</span>{% endif %}</div>
+</form>
+<div class="grid" style="align-content:start">
+  <div class="card"><h3>Templates</h3>
+    {% for t in templates %}<div style="padding:6px 0;border-bottom:1px solid var(--line2)"><a href="{{ url_for('compose', contact=c.id if c else None, template=t.id, opp=opp_id) }}">{{ t.name }}</a></div>{% endfor %}
+    <div class="small mt"><a href="{{ url_for('templates_view') }}">Manage templates</a> · placeholders: <code>{first_name}</code> <code>{organization}</code> <code>{my_name}</code> <code>{my_title}</code> <code>{firm_name}</code></div></div>
+  {% if c %}<div class="card"><h3>Writing to</h3><div class="who"><div class="avatar">{{ c|initials }}</div><div><a class="n" href="{{ url_for('contact_detail', cid=c.id) }}">{{ display_name(c) }}</a><div class="e">Last contacted {{ c.last_contacted|ago }}</div></div></div></div>{% endif %}
+</div>
+</div>
+{% endblock %}
